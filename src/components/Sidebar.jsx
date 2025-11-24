@@ -1,31 +1,31 @@
 import React from 'react';
-import { Home, Users, Save, Database, X } from 'lucide-react';
+import { Home, Users, Save, Database, X, LogOut } from 'lucide-react'; // Tambah LogOut
 
-export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
+export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
   return (
     <>
       {/* Mobile Overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 lg:hidden"
           onClick={() => setIsOpen(false)}
         ></div>
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-30 w-64 bg-slate-800 text-white transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0 flex flex-col shadow-xl
+        lg:relative lg:translate-x-0 flex flex-col shadow-2xl border-r border-slate-800
       `}>
-        <div className="p-6 border-b border-slate-700 flex justify-between items-center">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Database className="w-6 h-6 text-teal-400" />
+            <h1 className="text-xl font-bold flex items-center gap-3 text-teal-400">
+              <Database className="w-6 h-6" />
               Sistem RW
             </h1>
-            <p className="text-xs text-slate-400 mt-1">Manajemen Data Lokal</p>
+            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">ADMINISTRATOR</p>
           </div>
-          <button onClick={() => setIsOpen(false)} className="lg:hidden text-slate-300">
+          <button onClick={() => setIsOpen(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
             <X size={24} />
           </button>
         </div>
@@ -47,15 +47,25 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) 
           />
           <NavButton 
             id="settings" 
-            label="Backup & Restore" 
+            label="Pengaturan" 
             icon={<Save size={20} />} 
             activeTab={activeTab} 
             onClick={() => { setActiveTab('settings'); setIsOpen(false); }} 
           />
         </nav>
 
-        <div className="p-4 border-t border-slate-700 text-xs text-center text-slate-500">
-          Versi 1.0 (Modular)
+        <div className="p-4 border-t border-slate-800 bg-slate-950">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 group"
+          >
+            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform"/>
+            Keluar Aplikasi
+          </button>
+        </div>
+        
+        <div className="p-3 text-[10px] text-center text-slate-600 bg-slate-950">
+          v2.0 (Cloud Connected)
         </div>
       </aside>
     </>
@@ -67,8 +77,10 @@ function NavButton({ id, label, icon, activeTab, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-        isActive ? 'bg-teal-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+        isActive 
+        ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/50 translate-x-1' 
+        : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
       }`}
     >
       {icon} {label}
