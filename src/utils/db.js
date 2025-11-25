@@ -1,87 +1,108 @@
-/**
- * src/utils/db.js
- * Wrapper untuk Supabase (Cloud Database)
- */
 import { supabase } from './supabaseClient';
 
-// Helper untuk mapping camelCase (React) ke snake_case (Database)
-const toDbPayload = (data) => {
+// Helper: Ubah format React (camelCase) ke Database (snake_case)
+const toDbPayload = (data, householdData) => {
   return {
-    nama: data.nama,
     nik: data.nik,
-    kk: data.kk,
-    rt: data.rt,
-    alamat: data.alamat,
-    jenis_kelamin: data.jenisKelamin, // Mapping kunci
+    nama: data.nama,
+    kk: householdData.kk,       // Dari data rumah
+    no_rumah: householdData.noRumah, // Data baru
+    rt: householdData.rt,       // Dari data rumah
+    alamat: householdData.alamat, // Dari data rumah
+    foto_kk_url: householdData.fotoUrl, // URL Foto
+    jenis_kelamin: data.jenisKelamin,
     status: data.status,
-    no_hp: data.noHp // Mapping kunci
+    no_hp: data.noHp,
+    email: data.email,          // Data baru
+    peran_keluarga: data.peran  // Data baru (Kepala/Istri/Anak)
   };
 };
 
-// Helper untuk mapping snake_case (Database) ke camelCase (React)
-const fromDbPayload = (data) => {
-  return {
-    ...data,
-    jenisKelamin: data.jenis_kelamin,
-    noHp: data.no_hp
-  };
-};
+const fromDbPayload = (data) => ({
+  ...data,
+  jenisKelamin: data.jenis_kelamin,
+  noHp: data.no_hp,
+  noRumah: data.no_rumah,
+  fotoUrl: data.foto_kk_url,
+  peran: data.peran_keluarga
+});
 
 export const dbHelper = {
-  // Mengambil semua data
   getAll: async () => {
     const { data, error } = await supabase
       .from('warga')
       .select('*')
       .order('created_at', { ascending: false });
-    
     if (error) throw error;
     return data.map(fromDbPayload);
   },
 
-  // Menambah data baru
-  add: async (formData) => {
-    const payload = toDbPayload(formData);
-    const { data, error } = await supabase
-      .from('warga')
-      .insert([payload])
-      .select();
-      
+  // Fungsi Upload Foto ke Supabase Storage
+  uploadKK: async (file, noKK) => {
+    if (!file) return null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${noKK}-${Date.now()}.${fileExt}`;
+    const filePath = `kk/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('dokumen-warga')
+      .upload(filePath, file);
+
     if (error) throw error;
-    return data[0];
+
+    // Ambil URL Publik
+    const { data } = supabase.storage
+      .from('dokumen-warga')
+      .getPublicUrl(filePath);
+      
+    return data.publicUrl;
   },
 
-  // Update data
+  // Fungsi Tambah Keluarga (Bulk Insert / Upsert)
+  addFamily: async (members, householdData) => {
+    // Gabungkan data individu dengan data rumah (alamat, foto, dll)
+    const payload = members.map(member => toDbPayload(member, householdData));
+
+    // Upsert: Jika NIK sama, data akan diupdate. Jika baru, akan ditambah.
+    const { data, error } = await supabase
+      .from('warga')
+      .upsert(payload, { onConflict: 'nik' }) 
+      .select();
+
+    if (error) throw error;
+    return data;
+  },
+  
+  // Fungsi update satu orang (untuk Admin)
   update: async (formData) => {
-    const payload = toDbPayload(formData);
-    // Hapus ID dari payload update karena ID tidak boleh diubah manual
-    const { id } = formData;
+    // Mapping manual karena strukturnya flat di form admin
+    const payload = {
+      nama: formData.nama,
+      nik: formData.nik,
+      kk: formData.kk,
+      no_rumah: formData.noRumah,
+      rt: formData.rt,
+      alamat: formData.alamat,
+      jenis_kelamin: formData.jenisKelamin,
+      status: formData.status,
+      no_hp: formData.noHp,
+      email: formData.email,
+      peran_keluarga: formData.peran
+    };
     
     const { data, error } = await supabase
       .from('warga')
       .update(payload)
-      .eq('id', id)
+      .eq('id', formData.id)
       .select();
 
     if (error) throw error;
     return data[0];
   },
 
-  // Hapus data
   delete: async (id) => {
-    const { error } = await supabase
-      .from('warga')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await supabase.from('warga').delete().eq('id', id);
     if (error) throw error;
     return true;
-  },
-
-  // Fitur backup (opsional, bisa dimodifikasi nanti)
-  // Untuk cloud, biasanya kita tidak perlu clear manual seperti IndexedDB
-  clear: async () => {
-    console.warn("Fitur clear dimatikan untuk keamanan database Cloud.");
-    return false; 
   }
 };
