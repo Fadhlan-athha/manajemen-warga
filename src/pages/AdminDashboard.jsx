@@ -9,6 +9,7 @@ import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import Login from '../components/Login';
 import DashboardCharts from '../components/DashboardCharts';
+import { generateSuratPDF } from '../utils/suratGenerator';
 
 // Leaflet Imports
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -45,13 +46,18 @@ export default function AdminDashboard() {
   const [editMode, setEditMode] = useState(false);
   const [currentId, setCurrentId] = useState(null); // 'finance' | warga_id | null
 
-  // Form Data Warga (Update: ada latitude & longitude)
+  // --- UPDATE: FORM DATA LENGKAP ---
   const [formData, setFormData] = useState({
     nik: '', nama: '', kk: '', 
-    noRumah: '', rt: '01', 
+    noRumah: '', rt: '01', rw: '03', // Ada RW
     alamat: '', jenisKelamin: 'Laki-laki', 
     status: 'Tetap', noHp: '', 
     email: '', peran: 'Anggota',
+    // Field Baru
+    tempatLahir: '', tanggalLahir: '', 
+    agama: 'Islam', pekerjaan: '', 
+    statusPerkawinan: 'Kawin', golonganDarah: '-',
+    // Koordinat
     latitude: '', longitude: ''
   });
 
@@ -118,6 +124,7 @@ export default function AdminDashboard() {
         if (editMode) {
             await dbHelper.update({ ...formData, id: currentId });
         } else {
+            // Mapping data form ke struktur yang diharapkan dbHelper.addFamily
             const memberData = [{
                 nama: formData.nama,
                 nik: formData.nik,
@@ -125,12 +132,20 @@ export default function AdminDashboard() {
                 noHp: formData.noHp,
                 jenisKelamin: formData.jenisKelamin,
                 peran: formData.peran,
-                status: formData.status
+                status: formData.status,
+                // Data Baru
+                tempatLahir: formData.tempatLahir,
+                tanggalLahir: formData.tanggalLahir,
+                agama: formData.agama,
+                pekerjaan: formData.pekerjaan,
+                statusPerkawinan: formData.statusPerkawinan,
+                golonganDarah: formData.golonganDarah
             }];
             const householdData = {
                 kk: formData.kk,
                 noRumah: formData.noRumah,
                 rt: formData.rt,
+                rw: formData.rw, // Tambah RW
                 alamat: formData.alamat,
                 fotoUrl: null,
                 latitude: formData.latitude,
@@ -191,17 +206,42 @@ export default function AdminDashboard() {
     try { await dbHelper.updateStatusSurat(id, status, nomor); loadData(); } catch(err) { alert(err.message); }
   };
 
+  // Fungsi Approve Surat (Generate PDF)
+  const handleApproveSurat = async (suratItem) => {
+      const noSurat = prompt("Masukkan Nomor Surat (Contoh: 001):");
+      if (!noSurat) return;
+
+      const btn = document.getElementById(`btn-approve-${suratItem.id}`);
+      if(btn) btn.innerText = "⏳";
+
+      try {
+          const wargaFull = await dbHelper.getWargaByNIK(suratItem.nik);
+          const pdfBlob = generateSuratPDF(wargaFull, suratItem, noSurat);
+          const pdfFile = new File([pdfBlob], `Surat_Pengantar_${suratItem.nik}_${Date.now()}.pdf`, { type: "application/pdf" });
+          const publicUrl = await dbHelper.uploadFileSurat(pdfFile);
+          await dbHelper.updateStatusSurat(suratItem.id, 'Disetujui', noSurat, publicUrl);
+
+          alert("Surat berhasil disetujui & PDF telah dibuat!");
+          loadData(); 
+      } catch (error) {
+          console.error(error);
+          alert("Gagal memproses surat: " + error.message);
+      }
+  };
+
   const resetForm = () => {
     setFormData({
-        nik: '', nama: '', kk: '', noRumah: '', rt: '01', alamat: '', 
+        nik: '', nama: '', kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', 
         jenisKelamin: 'Laki-laki', status: 'Tetap', noHp: '', email: '', peran: 'Anggota',
+        tempatLahir: '', tanggalLahir: '', agama: 'Islam', pekerjaan: '', 
+        statusPerkawinan: 'Kawin', golonganDarah: '-',
         latitude: '', longitude: ''
     });
     setEditMode(false);
     setCurrentId(null);
   };
 
-  // Logic Grouping Warga (untuk Peta)
+  // Logic Grouping Warga
   const groupedFamilies = {};
   wargaList.forEach(person => {
     const kkKey = person.kk || 'unknown';
@@ -243,7 +283,7 @@ export default function AdminDashboard() {
                   <StatCard title="Kepala Keluarga" value={Object.keys(groupedFamilies).length} icon={<Home className="text-purple-500" />} color="bg-purple-50 border-purple-200" />
                   <StatCard title="Saldo Kas" value={`Rp ${saldoAkhir.toLocaleString('id-ID')}`} icon={<Wallet className="text-teal-500" />} color="bg-teal-50 border-teal-200" />
                   <StatCard title="Laporan Aktif" value={laporanList.filter(l => l.status !== 'Selesai').length} icon={<AlertTriangle className="text-red-500" />} color="bg-red-50 border-red-200" />
-                </div>
+               </div>
                <div className="mt-8 w-full">
                   <DashboardCharts 
                       wargaList={wargaList} 
@@ -251,7 +291,7 @@ export default function AdminDashboard() {
                       laporanList={laporanList} 
                   />
                </div>
-               </div>
+            </div>
           )}
 
           {activeTab === 'warga' && (
@@ -284,7 +324,6 @@ export default function AdminDashboard() {
                            const head = family.head || family.members[0]; 
                            const members = family.members;
                            if (!head) return null;
-                           // Filter logic
                            if (searchTerm && !head.nama.toLowerCase().includes(searchTerm.toLowerCase()) && !head.noRumah.toLowerCase().includes(searchTerm.toLowerCase())) return null;
 
                            return (
@@ -292,7 +331,7 @@ export default function AdminDashboard() {
                                    <tr className="bg-white hover:bg-gray-50 border-l-4 border-l-teal-500">
                                      <td className="p-4 align-top">
                                         <div className="font-bold text-teal-800 text-lg">{head.noRumah || '-'}</div>
-                                        <div className="text-gray-500 text-xs mb-1">RT {head.rt}</div>
+                                        <div className="text-gray-500 text-xs mb-1">RT {head.rt} / RW {head.rw || '03'}</div>
                                         <div className="text-xs font-mono bg-gray-100 inline-block px-1 rounded text-gray-600">{head.kk}</div>
                                      </td>
                                      <td className="p-4 align-top">
@@ -332,7 +371,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 3: PETA SEBARAN (BARU) */}
           {activeTab === 'peta' && (
             <div className="h-[80vh] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-in fade-in">
                 <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
@@ -348,7 +386,6 @@ export default function AdminDashboard() {
                         {Object.keys(groupedFamilies).map(kkKey => {
                             const head = groupedFamilies[kkKey].head;
                             if (!head || !head.latitude || !head.longitude) return null;
-                            
                             return (
                                 <Marker key={head.id} position={[head.latitude, head.longitude]}>
                                     <Popup>
@@ -439,9 +476,21 @@ export default function AdminDashboard() {
                          <td className="p-4">
                            {item.status === 'Pending' && (
                              <div className="flex gap-2">
-                               <button onClick={() => { const no = prompt("No Surat:"); if(no) handleStatusSurat(item.id, 'Disetujui', no); }} className="bg-green-100 text-green-700 p-2 rounded"><Check size={16}/></button>
-                               <button onClick={() => { if(confirm("Tolak?")) handleStatusSurat(item.id, 'Ditolak'); }} className="bg-red-100 text-red-700 p-2 rounded"><XIcon size={16}/></button>
+                               <button 
+                                 id={`btn-approve-${item.id}`}
+                                 onClick={() => handleApproveSurat(item)} 
+                                 className="bg-green-100 text-green-700 p-2 rounded hover:bg-green-200 transition-colors"
+                                 title="Setujui & Buat PDF"
+                               >
+                                 <Check size={16}/>
+                               </button>
+                               <button onClick={() => { if(confirm("Tolak?")) handleStatusSurat(item.id, 'Ditolak'); }} className="bg-red-100 text-red-700 p-2 rounded hover:bg-red-200"><XIcon size={16}/></button>
                              </div>
+                           )}
+                           {item.status === 'Disetujui' && item.file_url && (
+                              <a href={item.file_url} target="_blank" rel="noreferrer" className="text-teal-600 text-xs underline flex items-center gap-1">
+                                  <FileText size={12}/> Lihat PDF
+                              </a>
                            )}
                          </td>
                        </tr>
@@ -474,28 +523,49 @@ export default function AdminDashboard() {
                        <div><label className="text-xs font-bold uppercase">Keterangan</label><textarea className="w-full border p-2 rounded mt-1" value={financeForm.keterangan} onChange={e => setFinanceForm({...financeForm, keterangan: e.target.value})}></textarea></div>
                     </div>
                  ) : (
+                    // --- FORM LENGKAP WARGA ---
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase">Data Rumah & KK</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div><label className="text-xs font-bold text-gray-500 uppercase">No. KK</label><input className="w-full border p-2 rounded mt-1" value={formData.kk} onChange={e => setFormData({...formData, kk: e.target.value})} /></div>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="md:col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">No. KK</label><input className="w-full border p-2 rounded mt-1" value={formData.kk} onChange={e => setFormData({...formData, kk: e.target.value})} /></div>
                                 <div><label className="text-xs font-bold text-gray-500 uppercase">No. Rumah</label><input className="w-full border p-2 rounded mt-1" value={formData.noRumah} onChange={e => setFormData({...formData, noRumah: e.target.value})} /></div>
-                                <div><label className="text-xs font-bold text-gray-500 uppercase">RT</label><select className="w-full border p-2 rounded mt-1" value={formData.rt} onChange={e => setFormData({...formData, rt: e.target.value})}><option>01</option><option>02</option></select></div>
-                                <div className="md:col-span-3"><label className="text-xs font-bold text-gray-500 uppercase">Alamat</label><input className="w-full border p-2 rounded mt-1" value={formData.alamat} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
                                 
-                                {/* INPUT KOORDINAT BARU */}
-                                <div className="md:col-span-3 grid grid-cols-2 gap-4 mt-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">RT</label><select className="w-full border p-2 rounded mt-1" value={formData.rt} onChange={e => setFormData({...formData, rt: e.target.value})}><option>01</option><option>02</option><option>03</option></select></div>
+                                    <div><label className="text-xs font-bold text-gray-500 uppercase">RW</label><input className="w-full border p-2 rounded mt-1" value={formData.rw} onChange={e => setFormData({...formData, rw: e.target.value})} /></div>
+                                </div>
+
+                                <div className="md:col-span-4"><label className="text-xs font-bold text-gray-500 uppercase">Alamat</label><input className="w-full border p-2 rounded mt-1" value={formData.alamat} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
+                                
+                                <div className="md:col-span-4 grid grid-cols-2 gap-4 mt-2">
                                     <div><label className="text-xs font-bold text-teal-600 uppercase flex items-center gap-1"><MapPin size={12}/> Latitude</label><input className="w-full border border-teal-200 bg-teal-50 p-2 rounded mt-1" placeholder="-6.200000" value={formData.latitude || ''} onChange={e => setFormData({...formData, latitude: e.target.value})} /></div>
                                     <div><label className="text-xs font-bold text-teal-600 uppercase flex items-center gap-1"><MapPin size={12}/> Longitude</label><input className="w-full border border-teal-200 bg-teal-50 p-2 rounded mt-1" placeholder="106.816666" value={formData.longitude || ''} onChange={e => setFormData({...formData, longitude: e.target.value})} /></div>
-                                    <p className="col-span-2 text-[10px] text-gray-400">*Gunakan Google Maps untuk menyalin koordinat (klik kanan di peta -> pilih angka koordinat).</p>
                                 </div>
                             </div>
                         </div>
-                        {/* Data Personal */}
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">Nama</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">Peran</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
-                        <div><label className="text-xs font-bold text-gray-500 uppercase">No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
+
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Nama Lengkap</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
+                            
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Tempat Lahir</label><input className="w-full border p-2 rounded mt-1" value={formData.tempatLahir} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                                <div><label className="text-xs font-bold text-gray-500 uppercase">Agama</label><select className="w-full border p-2 rounded mt-1" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option></select></div>
+                                <div><label className="text-xs font-bold text-gray-500 uppercase">Gol. Darah</label><select className="w-full border p-2 rounded mt-1" value={formData.golonganDarah} onChange={e => setFormData({...formData, golonganDarah: e.target.value})}><option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
+                            </div>
+
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Pekerjaan</label><input className="w-full border p-2 rounded mt-1" value={formData.pekerjaan} onChange={e => setFormData({...formData, pekerjaan: e.target.value})} /></div>
+                            
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Status Perkawinan</label><select className="w-full border p-2 rounded mt-1" value={formData.statusPerkawinan} onChange={e => setFormData({...formData, statusPerkawinan: e.target.value})}><option>Kawin</option><option>Belum Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
+                            
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Email</label><input className="w-full border p-2 rounded mt-1" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase">Jenis Kelamin</label><select className="w-full border p-2 rounded mt-1" value={formData.jenisKelamin} onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}><option>Laki-laki</option><option>Perempuan</option></select></div>
+                        </div>
                     </div>
                  )}
                  <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">

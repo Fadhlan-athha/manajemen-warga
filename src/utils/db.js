@@ -3,16 +3,26 @@ import { supabase } from './supabaseClient';
 // Helper Format Data
 const toDbPayload = (data, householdData) => {
   return {
-    nik: data.nik,
-    nama: data.nama,
+    // --- Data Rumah ---
     kk: householdData.kk,       
     no_rumah: householdData.noRumah, 
-    rt: householdData.rt,       
+    rt: householdData.rt,
+    rw: householdData.rw, // <--- BARU       
     alamat: householdData.alamat, 
     foto_kk_url: householdData.fotoUrl, 
     latitude: householdData.latitude,
     longitude: householdData.longitude,
+
+    // --- Data Personal ---
+    nik: data.nik,
+    nama: data.nama,
     jenis_kelamin: data.jenisKelamin,
+    tempat_lahir: data.tempatLahir,     // <--- BARU
+    tanggal_lahir: data.tanggalLahir,   // <--- BARU
+    agama: data.agama,                  // <--- BARU
+    pekerjaan: data.pekerjaan,          // <--- BARU
+    status_perkawinan: data.statusPerkawinan, // <--- BARU
+    golongan_darah: data.golonganDarah, // <--- BARU
     status: data.status,
     no_hp: data.noHp,
     email: data.email,          
@@ -22,11 +32,18 @@ const toDbPayload = (data, householdData) => {
 
 const fromDbPayload = (data) => ({
   ...data,
+  // Mapping balik dari DB ke State React
   jenisKelamin: data.jenis_kelamin,
   noHp: data.no_hp,
   noRumah: data.no_rumah,
   fotoUrl: data.foto_kk_url,
   peran: data.peran_keluarga,
+  // Field Baru
+  tempatLahir: data.tempat_lahir,
+  tanggalLahir: data.tanggal_lahir,
+  statusPerkawinan: data.status_perkawinan,
+  golonganDarah: data.golongan_darah,
+  // Latitude & Longitude
   latitude: data.latitude,
   longitude: data.longitude
 });

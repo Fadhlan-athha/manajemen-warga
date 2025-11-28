@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-// PERBAIKAN: Menambahkan ekstensi .js agar modul terbaca
 import { dbHelper } from '../utils/db.js';
-import { Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight } from 'lucide-react';
+import { 
+  Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
+  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function PublicForm() {
@@ -10,12 +12,17 @@ export default function PublicForm() {
 
   // State 1: Data Rumah / KK
   const [household, setHousehold] = useState({
-    kk: '', noRumah: '', rt: '01', alamat: '', status: 'Tetap', fotoFile: null
+    kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', status: 'Tetap', fotoFile: null
   });
 
   // State 2: Daftar Anggota Keluarga
   const [members, setMembers] = useState([
-    { nama: '', nik: '', email: '', noHp: '', jenisKelamin: 'Laki-laki', peran: 'Kepala Keluarga' }
+    { 
+      nama: '', nik: '', email: '', noHp: '', 
+      jenisKelamin: 'Laki-laki', peran: 'Kepala Keluarga',
+      tempatLahir: '', tanggalLahir: '', agama: 'Islam',
+      pekerjaan: '', statusPerkawinan: 'Kawin', golonganDarah: '-'
+    }
   ]);
 
   const handleHouseholdChange = (e) => setHousehold({ ...household, [e.target.name]: e.target.value });
@@ -27,7 +34,12 @@ export default function PublicForm() {
     setMembers(updatedMembers);
   };
 
-  const addMember = () => setMembers([...members, { nama: '', nik: '', email: '', noHp: '', jenisKelamin: 'Laki-laki', peran: 'Anggota' }]);
+  const addMember = () => setMembers([...members, { 
+    nama: '', nik: '', email: '', noHp: '', 
+    jenisKelamin: 'Laki-laki', peran: 'Anggota',
+    tempatLahir: '', tanggalLahir: '', agama: 'Islam',
+    pekerjaan: '', statusPerkawinan: 'Belum Kawin', golonganDarah: '-'
+  }]);
   
   const removeMember = (index) => {
     if (members.length > 1) {
@@ -72,28 +84,19 @@ export default function PublicForm() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* HEADER DENGAN BACKGROUND GAMBAR */}
+      {/* HEADER */}
       <div 
         className="relative bg-teal-900 text-white py-18 px-6 text-center bg-cover bg-center bg-no-repeat"
-        style={{
-            // GANTI URL GAMBAR DI SINI JIKA INGIN GAMBAR LAIN
-            backgroundImage: "url('https://pbs.twimg.com/profile_images/378800000199005433/fb1918a600afc788d2a76ca2f9d7005c.jpeg')"
-        }}
+        style={{ backgroundImage: "url('https://pbs.twimg.com/profile_images/378800000199005433/fb1918a600afc788d2a76ca2f9d7005c.jpeg')" }}
       >
-         {/* Overlay Hitam Transparan agar teks terbaca */}
          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-
          <div className="relative z-10">
             <h1 className="text-4xl font-extrabold mb-4 tracking-tight drop-shadow-md">Portal Warga Digital</h1>
             <p className="text-teal-100 mb-10 text-lg font-light">Sistem Pelayanan & Data Warga Terpadu</p>
-            
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-4xl mx-auto">
                 <Link to="/surat" className="bg-white/90 backdrop-blur text-teal-900 px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl hover:bg-white transition-all transform hover:-translate-y-1 hover:scale-105">
-                    <FileText size={24} className="text-teal-700" />
-                    Layanan Surat Pengantar
-                    <ArrowRight size={18} className="text-gray-400" />
+                    <FileText size={24} className="text-teal-700" /> Layanan Surat Pengantar <ArrowRight size={18} className="text-gray-400" />
                 </Link>
-                
                 <Link to="/transparansi" className="bg-teal-600/90 backdrop-blur text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl border border-teal-500 hover:bg-teal-600 transition-all transform hover:-translate-y-1 hover:scale-105">
                     <span>💰 Cek Kas RT</span>
                 </Link>
@@ -101,7 +104,7 @@ export default function PublicForm() {
          </div>
       </div>
 
-      <div className="max-w-4xl mx-auto -mt-10 px-4 pb-20 relative z-20">
+      <div className="max-w-5xl mx-auto -mt-10 px-4 pb-20 relative z-20">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
             <div className="bg-gray-50 p-4 border-b border-gray-100 text-center">
                <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider">Formulir Sensus Warga</h3>
@@ -112,77 +115,122 @@ export default function PublicForm() {
             {/* --- BAGIAN 1: DATA RUMAH (KK) --- */}
             <div className="bg-teal-50/50 p-6 rounded-xl border border-teal-100">
                 <h3 className="text-xl font-bold text-teal-800 mb-4 flex items-center gap-2"><UploadCloud size={20}/> Data Kartu Keluarga & Rumah</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div>
-                    <label className="label">No. KK</label>
-                    <input className="input-field" name="kk" value={household.kk} onChange={handleHouseholdChange} required placeholder="16 Digit No. KK" />
-                </div>
-                <div>
-                    <label className="label">Nomor Rumah</label>
-                    <input className="input-field bg-yellow-50 border-yellow-300 focus:border-yellow-500 focus:shadow-yellow-100" name="noRumah" value={household.noRumah} onChange={handleHouseholdChange} required placeholder="Contoh: A-210" />
-                </div>
-                <div>
-                    <label className="label">RT</label>
-                    <select className="input-field" name="rt" value={household.rt} onChange={handleHouseholdChange}>
-                        <option value="01">RT 01</option><option value="02">RT 02</option><option value="03">RT 03</option>
-                    </select>
-                </div>
-                <div className="md:col-span-2">
-                    <label className="label">Alamat Lengkap</label>
-                    <input className="input-field" name="alamat" value={household.alamat} onChange={handleHouseholdChange} required placeholder="Nama Jalan, Blok..." />
-                </div>
-                <div>
-                    <label className="label">Foto Fisik KK</label>
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200 cursor-pointer"/>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                    <div className="md:col-span-2">
+                        <label className="label">No. Kartu Keluarga (KK)</label>
+                        <input className="input-field" name="kk" value={household.kk} onChange={handleHouseholdChange} required placeholder="16 Digit No. KK" type="number" />
+                    </div>
+                    <div>
+                        <label className="label">Nomor Rumah</label>
+                        <input className="input-field bg-yellow-50 border-yellow-300 focus:border-yellow-500" name="noRumah" value={household.noRumah} onChange={handleHouseholdChange} required placeholder="Contoh: A-210" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="label">RT</label>
+                            <select className="input-field" name="rt" value={household.rt} onChange={handleHouseholdChange}>
+                                <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="label">RW</label>
+                            <input className="input-field bg-gray-50" name="rw" value={household.rw} onChange={handleHouseholdChange} placeholder="03" />
+                        </div>
+                    </div>
+                    <div className="md:col-span-3">
+                        <label className="label">Alamat Lengkap</label>
+                        <input className="input-field" name="alamat" value={household.alamat} onChange={handleHouseholdChange} required placeholder="Nama Jalan, Blok..." />
+                    </div>
+                    <div>
+                        <label className="label">Foto Fisik KK</label>
+                        <input type="file" accept="image/*" onChange={handleFileChange} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200 cursor-pointer"/>
+                    </div>
                 </div>
             </div>
 
-            {/* --- BAGIAN 2: ANGGOTA KELUARGA --- */}
+            {/* --- BAGIAN 2: ANGGOTA KELUARGA (UPDATED: SEMUA LABEL PAKAI IKON) --- */}
             <div>
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><User size={20}/> Anggota Keluarga</h3>
-                <div className="space-y-4">
+                <div className="space-y-6">
                 {members.map((member, index) => (
-                    <div key={index} className="p-5 rounded-xl border border-gray-200 bg-white shadow-sm relative group hover:border-teal-300 transition-all">
-                    <div className="absolute -left-3 top-5 bg-teal-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow ring-2 ring-white">{index + 1}</div>
-                    {members.length > 1 && (
-                        <button type="button" onClick={() => removeMember(index)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={20} /></button>
-                    )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-4">
-                        <div className="lg:col-span-1">
-                            <label className="label">Nama Lengkap</label>
-                            <input className="input-field" value={member.nama} onChange={(e) => handleMemberChange(index, 'nama', e.target.value)} required placeholder="Sesuai KTP" />
+                    <div key={index} className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm relative group hover:border-teal-400 transition-all">
+                        <div className="absolute -left-3 top-6 bg-teal-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow ring-4 ring-white">{index + 1}</div>
+                        {members.length > 1 && (
+                            <button type="button" onClick={() => removeMember(index)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={20} /></button>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pl-4">
+                            {/* Identitas Utama */}
+                            <div className="lg:col-span-2">
+                                <label className="label flex items-center gap-1"><User size={12}/> Nama Lengkap</label>
+                                <input className="input-field font-bold" value={member.nama} onChange={(e) => handleMemberChange(index, 'nama', e.target.value)} required placeholder="Sesuai KTP" />
+                            </div>
+                            <div className="lg:col-span-2">
+                                <label className="label flex items-center gap-1"><FileText size={12}/> NIK</label>
+                                <input type="number" className="input-field font-mono" value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} required placeholder="16 Digit Angka" />
+                            </div>
+
+                            {/* TTL & Agama (Baris yang sebelumnya tidak rapi) */}
+                            <div>
+                                <label className="label flex items-center gap-1"><MapPin size={12}/> Tempat Lahir</label>
+                                <input className="input-field" value={member.tempatLahir} onChange={(e) => handleMemberChange(index, 'tempatLahir', e.target.value)} placeholder="Kota Kelahiran" />
+                            </div>
+                            <div>
+                                <label className="label flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label>
+                                <input type="date" className="input-field" value={member.tanggalLahir} onChange={(e) => handleMemberChange(index, 'tanggalLahir', e.target.value)} />
+                            </div>
+                             <div>
+                                {/* FIXED: Tambahkan Ikon Buku dan class flex agar sejajar */}
+                                <label className="label flex items-center gap-1"><BookOpen size={12}/> Agama</label>
+                                <select className="input-field" value={member.agama} onChange={(e) => handleMemberChange(index, 'agama', e.target.value)}>
+                                    <option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="label flex items-center gap-1"><Heart size={12}/> Gol. Darah</label>
+                                <select className="input-field" value={member.golonganDarah} onChange={(e) => handleMemberChange(index, 'golonganDarah', e.target.value)}>
+                                    <option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option>
+                                </select>
+                            </div>
+
+                            {/* Status & Pekerjaan */}
+                             <div>
+                                <label className="label flex items-center gap-1"><Users size={12}/> Status Perkawinan</label>
+                                <select className="input-field" value={member.statusPerkawinan} onChange={(e) => handleMemberChange(index, 'statusPerkawinan', e.target.value)}>
+                                    <option>Belum Kawin</option><option>Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option>
+                                </select>
+                            </div>
+                            <div className="lg:col-span-2">
+                                <label className="label flex items-center gap-1"><Briefcase size={12}/> Pekerjaan</label>
+                                <input className="input-field" value={member.pekerjaan} onChange={(e) => handleMemberChange(index, 'pekerjaan', e.target.value)} placeholder="Contoh: Karyawan Swasta / Pelajar" />
+                            </div>
+                            <div>
+                                <label className="label flex items-center gap-1"><UserCheck size={12}/> Peran Keluarga</label>
+                                <select className="input-field bg-blue-50 text-blue-800 font-bold" value={member.peran} onChange={(e) => handleMemberChange(index, 'peran', e.target.value)}>
+                                <option>Kepala Keluarga</option><option>Istri</option><option>Anak</option><option>Famili Lain</option>
+                                </select>
+                            </div>
+
+                             {/* Kontak */}
+                            <div>
+                                <label className="label flex items-center gap-1"><Phone size={12}/> No. HP (WA)</label>
+                                <input className="input-field" value={member.noHp} onChange={(e) => handleMemberChange(index, 'noHp', e.target.value)} placeholder="08..." />
+                            </div>
+                            <div className="lg:col-span-2">
+                                <label className="label flex items-center gap-1"><Mail size={12}/> Email</label>
+                                <input type="email" className="input-field" value={member.email} onChange={(e) => handleMemberChange(index, 'email', e.target.value)} placeholder="email@contoh.com" />
+                            </div>
+                             <div>
+                                <label className="label flex items-center gap-1"><User size={12}/> Jenis Kelamin</label>
+                                <select className="input-field" value={member.jenisKelamin} onChange={(e) => handleMemberChange(index, 'jenisKelamin', e.target.value)}>
+                                <option>Laki-laki</option><option>Perempuan</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label className="label">NIK</label>
-                            <input type="number" className="input-field" value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} required placeholder="16 Digit" />
-                        </div>
-                        <div>
-                            <label className="label">Peran</label>
-                            <select className="input-field bg-gray-50" value={member.peran} onChange={(e) => handleMemberChange(index, 'peran', e.target.value)}>
-                            <option>Kepala Keluarga</option><option>Istri</option><option>Anak</option><option>Famili Lain</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="label">Email</label>
-                            <input type="email" className="input-field" value={member.email} onChange={(e) => handleMemberChange(index, 'email', e.target.value)} placeholder="email@contoh.com" />
-                        </div>
-                        <div>
-                            <label className="label">No. HP</label>
-                            <input className="input-field" value={member.noHp} onChange={(e) => handleMemberChange(index, 'noHp', e.target.value)} placeholder="08..." />
-                        </div>
-                        <div>
-                            <label className="label">Jenis Kelamin</label>
-                            <select className="input-field" value={member.jenisKelamin} onChange={(e) => handleMemberChange(index, 'jenisKelamin', e.target.value)}>
-                            <option>Laki-laki</option><option>Perempuan</option>
-                            </select>
-                        </div>
-                    </div>
                     </div>
                 ))}
                 </div>
-                <button type="button" onClick={addMember} className="mt-4 flex items-center gap-2 text-teal-700 font-bold hover:bg-teal-50 px-4 py-2 rounded-lg transition-colors border-2 border-teal-100 border-dashed w-full justify-center hover:border-teal-300">
-                <Plus size={20} /> Tambah Anggota Keluarga Lain
+                <button type="button" onClick={addMember} className="mt-6 flex items-center gap-2 text-teal-700 font-bold hover:bg-teal-50 px-6 py-4 rounded-xl transition-colors border-2 border-teal-100 border-dashed w-full justify-center hover:border-teal-300">
+                    <Plus size={20} /> Tambah Anggota Keluarga Lain
                 </button>
             </div>
 
@@ -200,7 +248,7 @@ export default function PublicForm() {
       </div>
       
       <style>{`
-        .label { display: block; font-size: 0.70rem; font-weight: 700; color: #6b7280; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .label { display: flex; align-items: center; font-size: 0.70rem; font-weight: 700; color: #6b7280; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .input-field { width: 100%; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.5rem; outline: none; transition: all 0.2s; font-size: 0.95rem; }
         .input-field:focus { border-color: #0d9488; box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.1); }
       `}</style>

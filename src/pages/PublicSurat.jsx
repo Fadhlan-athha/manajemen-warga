@@ -196,9 +196,28 @@ export default function PublicSurat() {
                                             </div>
                                             <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded mb-2">"{item.keperluan}"</p>
                                             {item.status === 'Disetujui' && (
-                                                <div className="bg-green-50 text-green-800 text-sm p-3 rounded border border-green-200">
-                                                    ✅ <b>Disetujui!</b><br/>Nomor Surat: <span className="font-mono bg-white px-1 rounded border">{item.nomor_surat}</span><br/>
-                                                    Silakan ambil surat fisik di rumah Ketua RT.
+                                                <div className="bg-green-50 text-green-800 text-sm p-4 rounded-lg border border-green-200 mt-3 animate-in fade-in">
+                                                    <div className="flex items-start gap-3">
+                                                        <CheckCircle className="mt-1 shrink-0" size={18} />
+                                                        <div className="flex-1">
+                                                            <p className="font-bold mb-1">Pengajuan Disetujui!</p>
+                                                            <p className="mb-3 text-green-700/80">Nomor Surat: <span className="font-mono font-bold">{item.nomor_surat}</span></p>
+                                                            
+                                                            {/* Tombol Download PDF */}
+                                                            {item.file_url ? (
+                                                                <a 
+                                                                    href={item.file_url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-green-700 transition-colors text-xs sm:text-sm"
+                                                                >
+                                                                    <FileText size={16} /> Download Surat Pengantar (PDF)
+                                                                </a>
+                                                            ) : (
+                                                                <p className="text-xs text-red-500 italic">*File PDF belum tersedia, hubungi RT.</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
