@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Users, Save, Database, X, LogOut } from 'lucide-react'; // Tambah LogOut
+import { Home, Users, Save, Database, X, LogOut, Wallet, AlertTriangle, FileText, Map } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
   return (
@@ -44,6 +44,34 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
             icon={<Users size={20} />} 
             activeTab={activeTab} 
             onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
+          />
+          <NavButton 
+            id="peta" 
+            label="Peta Sebaran" 
+            icon={<Map size={20} />} 
+            activeTab={activeTab} 
+            onClick={() => { setActiveTab('peta'); setIsOpen(false); }} 
+          />
+          <NavButton 
+            id="keuangan" 
+            label="Keuangan & Kas" 
+            icon={<Wallet size={20} />} 
+            activeTab={activeTab} 
+            onClick={() => { setActiveTab('keuangan'); setIsOpen(false); }} 
+          />
+          <NavButton 
+            id="laporan" 
+            label="Laporan Darurat" 
+            icon={<AlertTriangle size={20} className="text-red-400"/>} 
+            activeTab={activeTab} 
+            onClick={() => { setActiveTab('laporan'); setIsOpen(false); }} 
+          />
+          <NavButton 
+            id="surat" 
+            label="Pengajuan Surat" 
+            icon={<FileText size={20} />} 
+            activeTab={activeTab} 
+            onClick={() => { setActiveTab('surat'); setIsOpen(false); }} 
           />
           <NavButton 
             id="settings" 
