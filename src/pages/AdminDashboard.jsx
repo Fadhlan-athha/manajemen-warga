@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Home, Plus, Trash2, Edit, Menu, Search, ExternalLink, 
-  Wallet, TrendingUp, TrendingDown, AlertTriangle, FileText, Check, X as XIcon, Map as MapIcon, MapPin
+  Wallet, TrendingUp, TrendingDown, AlertTriangle, FileText, Check, X as XIcon, Map as MapIcon, MapPin,
+  ChevronDown, ChevronRight, User, Calendar, Briefcase, Heart, BookOpen, Mail, Eye // Tambah Eye icon
 } from 'lucide-react';
 import { dbHelper } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
@@ -15,7 +16,6 @@ import { generateSuratPDF } from '../utils/suratGenerator';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
-// Fix Icon Leaflet Default yang sering hilang di React
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -35,41 +35,38 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
-  // Data Lists
+  const [expandedKK, setExpandedKK] = useState({});
+
   const [wargaList, setWargaList] = useState([]);
   const [transaksiList, setTransaksiList] = useState([]);
   const [laporanList, setLaporanList] = useState([]);
   const [suratList, setSuratList] = useState([]);
 
-  // Modal State
+  // Modal Edit/Add State
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [currentId, setCurrentId] = useState(null); // 'finance' | warga_id | null
+  const [currentId, setCurrentId] = useState(null); 
 
-  // --- UPDATE: FORM DATA LENGKAP ---
+  // Modal Detail KK State (BARU)
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedFamilyHead, setSelectedFamilyHead] = useState(null);
+
   const [formData, setFormData] = useState({
     nik: '', nama: '', kk: '', 
-    noRumah: '', rt: '01', rw: '03', // Ada RW
+    noRumah: '', rt: '01', rw: '03', 
     alamat: '', jenisKelamin: 'Laki-laki', 
     status: 'Tetap', noHp: '', 
     email: '', peran: 'Anggota',
-    // Field Baru
     tempatLahir: '', tanggalLahir: '', 
     agama: 'Islam', pekerjaan: '', 
     statusPerkawinan: 'Kawin', golonganDarah: '-',
-    // Koordinat
     latitude: '', longitude: ''
   });
 
-  // Form Data Keuangan
   const [financeForm, setFinanceForm] = useState({
-    tipe: 'Pemasukan',
-    kategori: 'Iuran Warga',
-    nominal: '',
-    keterangan: ''
+    tipe: 'Pemasukan', kategori: 'Iuran Warga', nominal: '', keterangan: ''
   });
 
-  // --- AUTH CHECK ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -80,22 +77,8 @@ export default function AdminDashboard() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- LOAD DATA ---
   useEffect(() => {
     if (session) loadData();
-  }, [session]);
-
-  // --- REALTIME LISTENER (LAPORAN DARURAT) ---
-  useEffect(() => {
-    if (!session) return;
-    const channel = supabase
-      .channel('public:laporan_darurat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'laporan_darurat' }, (payload) => {
-        alert(`⚠️ DARURAT BARU: ${payload.new.jenis_kejadian} di ${payload.new.lokasi}`);
-        loadData();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
   }, [session]);
 
   const loadData = async () => {
@@ -116,7 +99,13 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- HANDLERS: WARGA ---
+  const toggleKK = (kk) => {
+    setExpandedKK(prev => ({
+      ...prev,
+      [kk]: !prev[kk]
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -124,32 +113,16 @@ export default function AdminDashboard() {
         if (editMode) {
             await dbHelper.update({ ...formData, id: currentId });
         } else {
-            // Mapping data form ke struktur yang diharapkan dbHelper.addFamily
             const memberData = [{
-                nama: formData.nama,
-                nik: formData.nik,
-                email: formData.email,
-                noHp: formData.noHp,
-                jenisKelamin: formData.jenisKelamin,
-                peran: formData.peran,
-                status: formData.status,
-                // Data Baru
-                tempatLahir: formData.tempatLahir,
-                tanggalLahir: formData.tanggalLahir,
-                agama: formData.agama,
-                pekerjaan: formData.pekerjaan,
-                statusPerkawinan: formData.statusPerkawinan,
-                golonganDarah: formData.golonganDarah
+                nama: formData.nama, nik: formData.nik, email: formData.email, noHp: formData.noHp,
+                jenisKelamin: formData.jenisKelamin, peran: formData.peran, status: formData.status,
+                tempatLahir: formData.tempatLahir, tanggalLahir: formData.tanggalLahir,
+                agama: formData.agama, pekerjaan: formData.pekerjaan,
+                statusPerkawinan: formData.statusPerkawinan, golonganDarah: formData.golonganDarah
             }];
             const householdData = {
-                kk: formData.kk,
-                noRumah: formData.noRumah,
-                rt: formData.rt,
-                rw: formData.rw, // Tambah RW
-                alamat: formData.alamat,
-                fotoUrl: null,
-                latitude: formData.latitude,
-                longitude: formData.longitude
+                kk: formData.kk, noRumah: formData.noRumah, rt: formData.rt, rw: formData.rw,
+                alamat: formData.alamat, fotoUrl: null, latitude: formData.latitude, longitude: formData.longitude
             };
             await dbHelper.addFamily(memberData, householdData);
         }
@@ -157,76 +130,39 @@ export default function AdminDashboard() {
         resetForm();
         await loadData();
         alert("Data warga berhasil disimpan!");
-    } catch (err) {
-        alert("Gagal: " + err.message);
-    } finally {
-        setLoading(false);
-    }
+    } catch (err) { alert("Gagal: " + err.message); } finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
     if(confirm('Hapus data warga ini?')) { 
-      try {
-        await dbHelper.delete(id); 
-        loadData();
-      } catch (err) {
-        alert("Error: " + err.message);
-      }
+      try { await dbHelper.delete(id); loadData(); } catch (err) { alert("Error: " + err.message); }
     }
   };
 
-  // --- HANDLERS LAINNYA ---
   const handleFinanceSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      await dbHelper.addTransaksi(financeForm);
-      alert("Transaksi berhasil dicatat!");
-      setFinanceForm({ tipe: 'Pemasukan', kategori: 'Iuran Warga', nominal: '', keterangan: '' });
-      setShowModal(false);
-      loadData();
-    } catch (err) { alert("Gagal catat transaksi: " + err.message); } finally { setLoading(false); }
+    try { await dbHelper.addTransaksi(financeForm); alert("Transaksi berhasil!"); setFinanceForm({ tipe: 'Pemasukan', kategori: 'Iuran Warga', nominal: '', keterangan: '' }); setShowModal(false); loadData(); } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
-  const handleDeleteTransaksi = async (id) => {
-    if(confirm('Hapus catatan transaksi ini?')) {
-      try { await dbHelper.deleteTransaksi(id); loadData(); } catch(err) { alert(err.message) }
-    }
-  };
+  const handleDeleteTransaksi = async (id) => { if(confirm('Hapus?')) { try { await dbHelper.deleteTransaksi(id); loadData(); } catch(err) { alert(err.message) } } };
+  const handleStatusLaporan = async (id, status) => { try { await dbHelper.updateStatusLaporan(id, status); loadData(); } catch(err) { alert(err.message); } };
+  const handleDeleteLaporan = async (id) => { if(confirm('Hapus?')) { await dbHelper.deleteLaporan(id); loadData(); } };
+  const handleStatusSurat = async (id, status, nomor = null) => { try { await dbHelper.updateStatusSurat(id, status, nomor); loadData(); } catch(err) { alert(err.message); } };
 
-  const handleStatusLaporan = async (id, statusBaru) => {
-    try { await dbHelper.updateStatusLaporan(id, statusBaru); loadData(); } catch(err) { alert(err.message); }
-  };
-
-  const handleDeleteLaporan = async (id) => {
-    if(confirm('Hapus laporan ini?')) { await dbHelper.deleteLaporan(id); loadData(); }
-  };
-
-  const handleStatusSurat = async (id, status, nomor = null) => {
-    try { await dbHelper.updateStatusSurat(id, status, nomor); loadData(); } catch(err) { alert(err.message); }
-  };
-
-  // Fungsi Approve Surat (Generate PDF)
   const handleApproveSurat = async (suratItem) => {
       const noSurat = prompt("Masukkan Nomor Surat (Contoh: 001):");
       if (!noSurat) return;
-
       const btn = document.getElementById(`btn-approve-${suratItem.id}`);
       if(btn) btn.innerText = "⏳";
-
       try {
           const wargaFull = await dbHelper.getWargaByNIK(suratItem.nik);
           const pdfBlob = generateSuratPDF(wargaFull, suratItem, noSurat);
           const pdfFile = new File([pdfBlob], `Surat_Pengantar_${suratItem.nik}_${Date.now()}.pdf`, { type: "application/pdf" });
           const publicUrl = await dbHelper.uploadFileSurat(pdfFile);
           await dbHelper.updateStatusSurat(suratItem.id, 'Disetujui', noSurat, publicUrl);
-
-          alert("Surat berhasil disetujui & PDF telah dibuat!");
-          loadData(); 
-      } catch (error) {
-          console.error(error);
-          alert("Gagal memproses surat: " + error.message);
-      }
+          alert("Surat berhasil disetujui & PDF telah dibuat!"); loadData(); 
+      } catch (error) { console.error(error); alert("Gagal: " + error.message); }
   };
 
   const resetForm = () => {
@@ -234,26 +170,19 @@ export default function AdminDashboard() {
         nik: '', nama: '', kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', 
         jenisKelamin: 'Laki-laki', status: 'Tetap', noHp: '', email: '', peran: 'Anggota',
         tempatLahir: '', tanggalLahir: '', agama: 'Islam', pekerjaan: '', 
-        statusPerkawinan: 'Kawin', golonganDarah: '-',
-        latitude: '', longitude: ''
+        statusPerkawinan: 'Kawin', golonganDarah: '-', latitude: '', longitude: ''
     });
-    setEditMode(false);
-    setCurrentId(null);
+    setEditMode(false); setCurrentId(null);
   };
 
-  // Logic Grouping Warga
   const groupedFamilies = {};
   wargaList.forEach(person => {
     const kkKey = person.kk || 'unknown';
-    if (!groupedFamilies[kkKey]) {
-        groupedFamilies[kkKey] = { head: null, members: [] };
-    }
+    if (!groupedFamilies[kkKey]) { groupedFamilies[kkKey] = { head: null, members: [] }; }
     if (person.peran === 'Kepala Keluarga') {
         if (groupedFamilies[kkKey].head) groupedFamilies[kkKey].members.push(person);
         else groupedFamilies[kkKey].head = person;
-    } else {
-        groupedFamilies[kkKey].members.push(person);
-    }
+    } else { groupedFamilies[kkKey].members.push(person); }
   });
 
   const totalPemasukan = transaksiList.filter(t => t.tipe === 'Pemasukan').reduce((acc, curr) => acc + Number(curr.nominal), 0);
@@ -285,11 +214,7 @@ export default function AdminDashboard() {
                   <StatCard title="Laporan Aktif" value={laporanList.filter(l => l.status !== 'Selesai').length} icon={<AlertTriangle className="text-red-500" />} color="bg-red-50 border-red-200" />
                </div>
                <div className="mt-8 w-full">
-                  <DashboardCharts 
-                      wargaList={wargaList} 
-                      transaksiList={transaksiList} 
-                      laporanList={laporanList} 
-                  />
+                  <DashboardCharts wargaList={wargaList} transaksiList={transaksiList} laporanList={laporanList} />
                </div>
             </div>
           )}
@@ -308,11 +233,12 @@ export default function AdminDashboard() {
                </div>
                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                  <div className="overflow-x-auto">
-                   <table className="w-full text-left whitespace-nowrap text-sm">
-                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
+                   <table className="w-full text-left text-sm">
+                     <thead className="bg-gray-100 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider">
                        <tr>
+                          <th className="p-4 w-10"></th>
                           <th className="p-4">Rumah & KK</th>
-                          <th className="p-4">Nama Lengkap</th>
+                          <th className="p-4">Kepala Keluarga / Anggota</th>
                           <th className="p-4">Identitas</th>
                           <th className="p-4">Kontak</th>
                           <th className="p-4 text-right">Aksi</th>
@@ -324,42 +250,79 @@ export default function AdminDashboard() {
                            const head = family.head || family.members[0]; 
                            const members = family.members;
                            if (!head) return null;
-                           if (searchTerm && !head.nama.toLowerCase().includes(searchTerm.toLowerCase()) && !head.noRumah.toLowerCase().includes(searchTerm.toLowerCase())) return null;
+                           
+                           if (searchTerm && !head.nama.toLowerCase().includes(searchTerm.toLowerCase()) && !head.noRumah.toLowerCase().includes(searchTerm.toLowerCase()) && !head.kk.includes(searchTerm)) return null;
+
+                           const isExpanded = expandedKK[kkKey];
 
                            return (
                                <React.Fragment key={kkKey}>
-                                   <tr className="bg-white hover:bg-gray-50 border-l-4 border-l-teal-500">
-                                     <td className="p-4 align-top">
-                                        <div className="font-bold text-teal-800 text-lg">{head.noRumah || '-'}</div>
-                                        <div className="text-gray-500 text-xs mb-1">RT {head.rt} / RW {head.rw || '03'}</div>
-                                        <div className="text-xs font-mono bg-gray-100 inline-block px-1 rounded text-gray-600">{head.kk}</div>
+                                   {/* KEPALA KELUARGA (Baris Utama) */}
+                                   <tr 
+                                      className={`cursor-pointer transition-colors ${isExpanded ? 'bg-teal-50 hover:bg-teal-100 border-l-4 border-l-teal-600' : 'bg-white hover:bg-gray-50 border-l-4 border-l-transparent'}`}
+                                      onClick={() => toggleKK(kkKey)}
+                                   >
+                                     <td className="p-4 text-center">
+                                        {isExpanded ? <ChevronDown size={20} className="text-teal-600"/> : <ChevronRight size={20} className="text-gray-400"/>}
                                      </td>
                                      <td className="p-4 align-top">
-                                        <div className="font-bold text-gray-900">{head.nama}</div>
-                                        <div className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full inline-block mt-1">{head.peran}</div>
+                                        <div className="font-bold text-gray-800 text-lg">{head.noRumah || '-'}</div>
+                                        <div className="text-gray-500 text-xs mb-1">RT {head.rt} / RW {head.rw}</div>
+                                        <div className="text-xs font-mono bg-gray-200 inline-block px-2 py-0.5 rounded text-gray-600">{head.kk}</div>
                                      </td>
-                                     <td className="p-4 align-top font-mono text-gray-600">{head.nik}</td>
-                                     <td className="p-4 align-top">{head.noHp || '-'}</td>
-                                     <td className="p-4 text-right space-x-2">
-                                       <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="text-blue-600 hover:bg-blue-50 p-2 rounded"><Edit size={16}/></button>
-                                       <button onClick={() => handleDelete(head.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
+                                     <td className="p-4 align-top">
+                                        <div className="font-bold text-gray-900 flex items-center gap-2">
+                                            <User size={16} className="text-teal-600"/> {head.nama}
+                                        </div>
+                                        <div className="text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full inline-block mt-1 font-bold">{head.peran}</div>
+                                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Briefcase size={10}/> {head.pekerjaan || '-'}</div>
+                                     </td>
+                                     <td className="p-4 align-top">
+                                        <div className="font-mono text-gray-600 text-xs mb-1">{head.nik}</div>
+                                        <div className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={10}/> {head.tempatLahir}, {head.tanggalLahir ? new Date(head.tanggalLahir).toLocaleDateString() : '-'}</div>
+                                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-1"><BookOpen size={10}/> {head.agama}</div>
+                                     </td>
+                                     <td className="p-4 align-top text-gray-600">
+                                        <div>{head.noHp || '-'}</div>
+                                        <div className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Mail size={10}/> {head.email || '-'}</div>
+                                     </td>
+                                     <td className="p-4 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
+                                       {/* TOMBOL LIHAT DETAIL (MATA) */}
+                                       <button onClick={() => { setSelectedFamilyHead(head); setShowDetailModal(true); }} className="text-teal-600 hover:bg-teal-100 p-2 rounded transition-colors" title="Lihat Detail & Foto KK"><Eye size={18}/></button>
+                                       <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition-colors" title="Edit"><Edit size={18}/></button>
+                                       <button onClick={() => handleDelete(head.id)} className="text-red-500 hover:bg-red-100 p-2 rounded transition-colors" title="Hapus"><Trash2 size={18}/></button>
                                      </td>
                                    </tr>
-                                   {members.map((member) => (
-                                       <tr key={member.id} className="bg-gray-50/50 hover:bg-gray-100">
-                                          <td className="p-4 border-r border-gray-100"></td>
-                                          <td className="p-4 pl-8 relative">
-                                              <div className="absolute left-0 top-1/2 w-6 h-px bg-gray-300"></div>
-                                              <div className="absolute left-0 top-0 bottom-1/2 w-px bg-gray-300"></div>
-                                              <div className="text-gray-700">{member.nama} <span className="text-xs bg-gray-200 px-1 rounded">{member.peran}</span></div>
+
+                                   {/* ANGGOTA KELUARGA (Baris-baris tambahan dalam tabel) */}
+                                   {isExpanded && members.map((member) => (
+                                      <tr key={member.id} className="bg-gray-50 hover:bg-gray-100 animate-in slide-in-from-top-1">
+                                          <td className="p-4 text-center relative">
+                                              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-300 -z-10"></div>
+                                              <div className="absolute top-1/2 left-1/2 w-4 h-px bg-gray-300"></div>
                                           </td>
-                                          <td className="p-4 font-mono text-gray-500 text-sm">{member.nik}</td>
-                                          <td className="p-4 text-gray-500 text-sm">{member.noHp || '-'}</td>
-                                          <td className="p-4 text-right space-x-2 opacity-60 hover:opacity-100">
-                                              <button onClick={() => { setFormData(member); setCurrentId(member.id); setEditMode(true); setShowModal(true); }} className="text-blue-600 hover:bg-blue-100 p-1.5 rounded"><Edit size={14}/></button>
-                                              <button onClick={() => handleDelete(member.id)} className="text-red-500 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/></button>
+                                          <td className="p-4"></td>
+                                          <td className="p-4 align-top">
+                                              <div className="font-bold text-gray-700 flex items-center gap-2">
+                                                  <User size={14} className="text-gray-400"/> {member.nama}
+                                              </div>
+                                              <div className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full inline-block mt-1 font-bold">{member.peran}</div>
+                                              <div className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Briefcase size={10}/> {member.pekerjaan || '-'}</div>
                                           </td>
-                                       </tr>
+                                          <td className="p-4 align-top">
+                                              <div className="font-mono text-gray-500 text-xs mb-1">{member.nik}</div>
+                                              <div className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={10}/> {member.tempatLahir}, {member.tanggalLahir ? new Date(member.tanggalLahir).toLocaleDateString() : '-'}</div>
+                                              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1"><BookOpen size={10}/> {member.agama}</div>
+                                          </td>
+                                          <td className="p-4 align-top text-gray-600">
+                                              <div>{member.noHp || '-'}</div>
+                                              <div className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Mail size={10}/> {member.email || '-'}</div>
+                                          </td>
+                                          <td className="p-4 text-right space-x-2">
+                                              <button onClick={() => { setFormData(member); setCurrentId(member.id); setEditMode(true); setShowModal(true); }} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded" title="Edit"><Edit size={16}/></button>
+                                              <button onClick={() => handleDelete(member.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Hapus"><Trash2 size={16}/></button>
+                                          </td>
+                                      </tr>
                                    ))}
                                </React.Fragment>
                            );
@@ -379,10 +342,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex-1 z-0 relative">
                     <MapContainer center={[-6.200000, 106.816666]} zoom={15} style={{ height: '100%', width: '100%' }}>
-                        <TileLayer
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            attribution='&copy; OpenStreetMap contributors'
-                        />
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
                         {Object.keys(groupedFamilies).map(kkKey => {
                             const head = groupedFamilies[kkKey].head;
                             if (!head || !head.latitude || !head.longitude) return null;
@@ -391,12 +351,8 @@ export default function AdminDashboard() {
                                     <Popup>
                                         <div className="min-w-[150px]">
                                             <h4 className="font-bold text-sm mb-1">{head.nama}</h4>
-                                            <div className="text-xs text-gray-600 mb-2">
-                                                Rumah: <b>{head.noRumah}</b> (RT {head.rt})
-                                            </div>
-                                            <div className="text-xs">
-                                                Anggota: {groupedFamilies[kkKey].members.length + 1} Orang
-                                            </div>
+                                            <div className="text-xs text-gray-600 mb-2">Rumah: <b>{head.noRumah}</b> (RT {head.rt}/RW {head.rw})</div>
+                                            <div className="text-xs">Anggota: {groupedFamilies[kkKey].members.length + 1} Orang</div>
                                             <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="mt-2 text-teal-600 text-xs underline">Edit Data</button>
                                         </div>
                                     </Popup>
@@ -476,22 +432,11 @@ export default function AdminDashboard() {
                          <td className="p-4">
                            {item.status === 'Pending' && (
                              <div className="flex gap-2">
-                               <button 
-                                 id={`btn-approve-${item.id}`}
-                                 onClick={() => handleApproveSurat(item)} 
-                                 className="bg-green-100 text-green-700 p-2 rounded hover:bg-green-200 transition-colors"
-                                 title="Setujui & Buat PDF"
-                               >
-                                 <Check size={16}/>
-                               </button>
+                               <button id={`btn-approve-${item.id}`} onClick={() => handleApproveSurat(item)} className="bg-green-100 text-green-700 p-2 rounded hover:bg-green-200 transition-colors" title="Setujui & Buat PDF"><Check size={16}/></button>
                                <button onClick={() => { if(confirm("Tolak?")) handleStatusSurat(item.id, 'Ditolak'); }} className="bg-red-100 text-red-700 p-2 rounded hover:bg-red-200"><XIcon size={16}/></button>
                              </div>
                            )}
-                           {item.status === 'Disetujui' && item.file_url && (
-                              <a href={item.file_url} target="_blank" rel="noreferrer" className="text-teal-600 text-xs underline flex items-center gap-1">
-                                  <FileText size={12}/> Lihat PDF
-                              </a>
-                           )}
+                           {item.status === 'Disetujui' && item.file_url && (<a href={item.file_url} target="_blank" rel="noreferrer" className="text-teal-600 text-xs underline flex items-center gap-1"><FileText size={12}/> Lihat PDF</a>)}
                          </td>
                        </tr>
                      ))}
@@ -505,6 +450,7 @@ export default function AdminDashboard() {
         </div>
       </main>
 
+      {/* MODAL EDIT/ADD */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
            <div className="bg-white p-6 rounded-2xl w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -523,48 +469,38 @@ export default function AdminDashboard() {
                        <div><label className="text-xs font-bold uppercase">Keterangan</label><textarea className="w-full border p-2 rounded mt-1" value={financeForm.keterangan} onChange={e => setFinanceForm({...financeForm, keterangan: e.target.value})}></textarea></div>
                     </div>
                  ) : (
-                    // --- FORM LENGKAP WARGA ---
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase">Data Rumah & KK</h4>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="md:col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">No. KK</label><input className="w-full border p-2 rounded mt-1" value={formData.kk} onChange={e => setFormData({...formData, kk: e.target.value})} /></div>
                                 <div><label className="text-xs font-bold text-gray-500 uppercase">No. Rumah</label><input className="w-full border p-2 rounded mt-1" value={formData.noRumah} onChange={e => setFormData({...formData, noRumah: e.target.value})} /></div>
-                                
                                 <div className="grid grid-cols-2 gap-2">
                                     <div><label className="text-xs font-bold text-gray-500 uppercase">RT</label><select className="w-full border p-2 rounded mt-1" value={formData.rt} onChange={e => setFormData({...formData, rt: e.target.value})}><option>01</option><option>02</option><option>03</option></select></div>
                                     <div><label className="text-xs font-bold text-gray-500 uppercase">RW</label><input className="w-full border p-2 rounded mt-1" value={formData.rw} onChange={e => setFormData({...formData, rw: e.target.value})} /></div>
                                 </div>
-
                                 <div className="md:col-span-4"><label className="text-xs font-bold text-gray-500 uppercase">Alamat</label><input className="w-full border p-2 rounded mt-1" value={formData.alamat} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
-                                
                                 <div className="md:col-span-4 grid grid-cols-2 gap-4 mt-2">
                                     <div><label className="text-xs font-bold text-teal-600 uppercase flex items-center gap-1"><MapPin size={12}/> Latitude</label><input className="w-full border border-teal-200 bg-teal-50 p-2 rounded mt-1" placeholder="-6.200000" value={formData.latitude || ''} onChange={e => setFormData({...formData, latitude: e.target.value})} /></div>
                                     <div><label className="text-xs font-bold text-teal-600 uppercase flex items-center gap-1"><MapPin size={12}/> Longitude</label><input className="w-full border border-teal-200 bg-teal-50 p-2 rounded mt-1" placeholder="106.816666" value={formData.longitude || ''} onChange={e => setFormData({...formData, longitude: e.target.value})} /></div>
                                 </div>
                             </div>
                         </div>
-
                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Nama Lengkap</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
-                            
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Tempat Lahir</label><input className="w-full border p-2 rounded mt-1" value={formData.tempatLahir} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
-                            
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Nama Lengkap</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><FileText size={12}/> NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><MapPin size={12}/> Tempat Lahir</label><input className="w-full border p-2 rounded mt-1" value={formData.tempatLahir} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData,tanggalLahir: e.target.value})} /></div>
                             <div className="grid grid-cols-2 gap-2">
-                                <div><label className="text-xs font-bold text-gray-500 uppercase">Agama</label><select className="w-full border p-2 rounded mt-1" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option></select></div>
-                                <div><label className="text-xs font-bold text-gray-500 uppercase">Gol. Darah</label><select className="w-full border p-2 rounded mt-1" value={formData.golonganDarah} onChange={e => setFormData({...formData, golonganDarah: e.target.value})}><option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
+                                <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><BookOpen size={12}/> Agama</label><select className="w-full border p-2 rounded mt-1" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option></select></div>
+                                <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Heart size={12}/> Gol. Darah</label><select className="w-full border p-2 rounded mt-1" value={formData.golonganDarah} onChange={e => setFormData({...formData, golonganDarah: e.target.value})}><option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
                             </div>
-
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Pekerjaan</label><input className="w-full border p-2 rounded mt-1" value={formData.pekerjaan} onChange={e => setFormData({...formData, pekerjaan: e.target.value})} /></div>
-                            
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Status Perkawinan</label><select className="w-full border p-2 rounded mt-1" value={formData.statusPerkawinan} onChange={e => setFormData({...formData, statusPerkawinan: e.target.value})}><option>Kawin</option><option>Belum Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option></select></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
-                            
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Email</label><input className="w-full border p-2 rounded mt-1" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase">Jenis Kelamin</label><select className="w-full border p-2 rounded mt-1" value={formData.jenisKelamin} onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}><option>Laki-laki</option><option>Perempuan</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> Pekerjaan</label><input className="w-full border p-2 rounded mt-1" value={formData.pekerjaan} onChange={e => setFormData({...formData, pekerjaan: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Status Perkawinan</label><select className="w-full border p-2 rounded mt-1" value={formData.statusPerkawinan} onChange={e => setFormData({...formData, statusPerkawinan: e.target.value})}><option>Kawin</option><option>Belum Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Mail size={12}/> Email</label><input className="w-full border p-2 rounded mt-1" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Jenis Kelamin</label><select className="w-full border p-2 rounded mt-1" value={formData.jenisKelamin} onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}><option>Laki-laki</option><option>Perempuan</option></select></div>
                         </div>
                     </div>
                  )}
@@ -573,6 +509,52 @@ export default function AdminDashboard() {
                    <button type="submit" className="px-6 py-2.5 bg-teal-600 text-white rounded-lg shadow">Simpan</button>
                  </div>
               </form>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL KK (BARU) */}
+      {showDetailModal && selectedFamilyHead && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in">
+           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 relative">
+              <button onClick={() => setShowDetailModal(false)} className="absolute top-4 right-4 bg-gray-100 hover:bg-gray-200 rounded-full p-1 text-gray-600 transition-colors"><XIcon size={20}/></button>
+              
+              <div className="bg-teal-600 p-6 text-white">
+                  <h3 className="text-xl font-bold flex items-center gap-2"><FileText/> Detail Kartu Keluarga</h3>
+                  <p className="opacity-80 mt-1 font-mono">No. KK: {selectedFamilyHead.kk}</p>
+              </div>
+              
+              <div className="p-6 md:p-8 space-y-6">
+                  {/* Informasi Alamat */}
+                  <div>
+                      <h4 className="text-sm font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><Home size={16}/> Alamat Lengkap</h4>
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-800">
+                          <p className="font-bold text-lg">{selectedFamilyHead.alamat}</p>
+                          <p className="mt-1">Nomor Rumah: <b>{selectedFamilyHead.noRumah}</b></p>
+                          <p>RT <b>{selectedFamilyHead.rt}</b> / RW <b>{selectedFamilyHead.rw}</b></p>
+                          <p className="text-gray-500 text-sm mt-2">Kelurahan Sukamaju, Kecamatan Sukajaya, Jakarta Selatan</p>
+                      </div>
+                  </div>
+
+                  {/* Foto Fisik KK */}
+                  <div>
+                      <h4 className="text-sm font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><FileText size={16}/> Foto Fisik KK</h4>
+                      <div className="bg-gray-100 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center min-h-[200px]">
+                          {selectedFamilyHead.foto_kk_url ? (
+                              <img src={selectedFamilyHead.foto_kk_url} alt="Foto KK" className="w-full h-auto object-contain hover:scale-105 transition-transform cursor-zoom-in" onClick={() => window.open(selectedFamilyHead.foto_kk_url, '_blank')} />
+                          ) : (
+                              <div className="text-gray-400 flex flex-col items-center gap-2">
+                                  <FileText size={40} className="opacity-50"/>
+                                  <p>Foto fisik KK belum diunggah.</p>
+                              </div>
+                          )}
+                      </div>
+                      {selectedFamilyHead.foto_kk_url && <p className="text-center text-xs text-gray-500 mt-2">Klik gambar untuk memperbesar.</p>}
+                  </div>
+              </div>
+              <div className="bg-gray-50 p-4 text-right border-t border-gray-100">
+                  <button onClick={() => setShowDetailModal(false)} className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors">Tutup</button>
+              </div>
            </div>
         </div>
       )}

@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { dbHelper } from '../utils/db.js';
 import { 
   Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
-  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck
+  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function PublicForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // State untuk menyimpan pesan error validasi
+  const [errors, setErrors] = useState({});
 
   // State 1: Data Rumah / KK
   const [household, setHousehold] = useState({
@@ -25,13 +27,24 @@ export default function PublicForm() {
     }
   ]);
 
-  const handleHouseholdChange = (e) => setHousehold({ ...household, [e.target.name]: e.target.value });
-  const handleFileChange = (e) => setHousehold({ ...household, fotoFile: e.target.files[0] });
+  const handleHouseholdChange = (e) => {
+    setHousehold({ ...household, [e.target.name]: e.target.value });
+    // Hapus error saat user mulai mengetik
+    if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: null });
+  };
+
+  const handleFileChange = (e) => {
+    setHousehold({ ...household, fotoFile: e.target.files[0] });
+    if (errors.fotoFile) setErrors({ ...errors, fotoFile: null });
+  };
 
   const handleMemberChange = (index, field, value) => {
     const updatedMembers = [...members];
     updatedMembers[index][field] = value;
     setMembers(updatedMembers);
+     // Hapus error spesifik member saat mengetik
+    const errorKey = `member_${index}_${field}`;
+    if (errors[errorKey]) setErrors({ ...errors, [errorKey]: null });
   };
 
   const addMember = () => setMembers([...members, { 
@@ -49,23 +62,64 @@ export default function PublicForm() {
     }
   };
 
+  // --- FUNGSI VALIDASI ---
+  const validateForm = () => {
+      const newErrors = {};
+      
+      // 1. Validasi Data Rumah
+      if (!household.kk) newErrors.kk = "No. KK wajib diisi";
+      if (household.kk && household.kk.length !== 16) newErrors.kk = "No. KK harus 16 digit";
+      if (!household.noRumah) newErrors.noRumah = "Nomor rumah wajib diisi";
+      if (!household.alamat) newErrors.alamat = "Alamat lengkap wajib diisi";
+      if (!household.fotoFile) newErrors.fotoFile = "Foto fisik KK wajib diupload";
+
+      // 2. Validasi Setiap Anggota Keluarga
+      members.forEach((member, index) => {
+          if (!member.nama) newErrors[`member_${index}_nama`] = "Nama lengkap wajib diisi";
+          if (!member.nik) newErrors[`member_${index}_nik`] = "NIK wajib diisi";
+          if (member.nik && member.nik.length !== 16) newErrors[`member_${index}_nik`] = "NIK harus 16 digit";
+          if (!member.tempatLahir) newErrors[`member_${index}_tempatLahir`] = "Tempat lahir wajib diisi";
+          if (!member.tanggalLahir) newErrors[`member_${index}_tanggalLahir`] = "Tanggal lahir wajib diisi";
+          if (!member.pekerjaan) newErrors[`member_${index}_pekerjaan`] = "Pekerjaan wajib diisi (isi '-' jika tidak ada)";
+          // Kontak opsional tapi disarankan diisi salah satu
+          if (!member.noHp && index === 0) newErrors[`member_${0}_noHp`] = "Kepala Keluarga wajib mengisi No HP";
+      });
+
+      return newErrors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Jalankan Validasi
+    const formErrors = validateForm();
+    if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        alert("Mohon periksa kembali formulir Anda. Ada data yang belum diisi.");
+        // Scroll ke paling atas agar user melihat error
+        window.scrollTo(0, 0);
+        return;
+    }
+
     setLoading(true);
     try {
       let fotoUrl = null;
+      // Upload foto dulu
       if (household.fotoFile) {
-        fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk || 'unknown');
+        fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk);
       }
       const householdDataFinal = { ...household, fotoUrl };
       await dbHelper.addFamily(members, householdDataFinal);
       setSuccess(true);
     } catch (err) {
-      alert("Error: " + err.message);
+      alert("Terjadi Kesalahan: " + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // Komponen kecil untuk pesan error
+  const ErrorMsg = ({ msg }) => msg ? <p className="text-red-500 text-xs mt-1 flex items-center gap-1 animate-pulse"><AlertCircle size={12}/> {msg}</p> : null;
 
   if (success) {
     return (
@@ -109,20 +163,24 @@ export default function PublicForm() {
             <div className="bg-gray-50 p-4 border-b border-gray-100 text-center">
                <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider">Formulir Sensus Warga</h3>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8">
+            
+            {/* Tambahkan 'noValidate' agar browser tidak menggunakan validasi HTML default */}
+            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8" noValidate>
             
             {/* --- BAGIAN 1: DATA RUMAH (KK) --- */}
-            <div className="bg-teal-50/50 p-6 rounded-xl border border-teal-100">
+            <div className="bg-teal-50/50 p-6 rounded-xl border border-teal-100 relative">
+                {Object.keys(errors).some(k => !k.startsWith('member')) && <div className="absolute top-4 right-4 text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> Data Rumah Belum Lengkap</div>}
                 <h3 className="text-xl font-bold text-teal-800 mb-4 flex items-center gap-2"><UploadCloud size={20}/> Data Kartu Keluarga & Rumah</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                     <div className="md:col-span-2">
-                        <label className="label">No. Kartu Keluarga (KK)</label>
-                        <input className="input-field" name="kk" value={household.kk} onChange={handleHouseholdChange} required placeholder="16 Digit No. KK" type="number" />
+                        <label className="label">No. Kartu Keluarga (KK) *</label>
+                        <input className={`input-field ${errors.kk ? 'border-red-500 bg-red-50' : ''}`} name="kk" value={household.kk} onChange={handleHouseholdChange} placeholder="16 Digit No. KK" type="number" />
+                        <ErrorMsg msg={errors.kk} />
                     </div>
                     <div>
-                        <label className="label">Nomor Rumah</label>
-                        <input className="input-field bg-yellow-50 border-yellow-300 focus:border-yellow-500" name="noRumah" value={household.noRumah} onChange={handleHouseholdChange} required placeholder="Contoh: A-210" />
+                        <label className="label">Nomor Rumah *</label>
+                        <input className={`input-field ${errors.noRumah ? 'border-red-500 bg-red-50' : 'bg-yellow-50 border-yellow-300 focus:border-yellow-500'}`} name="noRumah" value={household.noRumah} onChange={handleHouseholdChange} placeholder="Contoh: A-210" />
+                        <ErrorMsg msg={errors.noRumah} />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -133,53 +191,60 @@ export default function PublicForm() {
                         </div>
                         <div>
                             <label className="label">RW</label>
-                            <input className="input-field bg-gray-50" name="rw" value={household.rw} onChange={handleHouseholdChange} placeholder="03" />
+                            <input className="input-field" name="rw" value={household.rw} onChange={handleHouseholdChange} placeholder="01"/>
                         </div>
                     </div>
                     <div className="md:col-span-3">
-                        <label className="label">Alamat Lengkap</label>
-                        <input className="input-field" name="alamat" value={household.alamat} onChange={handleHouseholdChange} required placeholder="Nama Jalan, Blok..." />
+                        <label className="label">Alamat Rumah *</label>
+                        <input className={`input-field ${errors.alamat ? 'border-red-500 bg-red-50' : ''}`} name="alamat" value={household.alamat} onChange={handleHouseholdChange} placeholder="Nama Jalan, Gang, Blok..." />
+                        <ErrorMsg msg={errors.alamat} />
                     </div>
                     <div>
-                        <label className="label">Foto Fisik KK</label>
-                        <input type="file" accept="image/*" onChange={handleFileChange} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200 cursor-pointer"/>
+                        <label className="label">Foto Fisik KK *</label>
+                        <input type="file" accept="image/*" onChange={handleFileChange} className={`block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold ${errors.fotoFile ? 'file:bg-red-100 file:text-red-700' : 'file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200'} cursor-pointer`}/>
+                        <ErrorMsg msg={errors.fotoFile} />
                     </div>
                 </div>
             </div>
 
-            {/* --- BAGIAN 2: ANGGOTA KELUARGA (UPDATED: SEMUA LABEL PAKAI IKON) --- */}
+            {/* --- BAGIAN 2: ANGGOTA KELUARGA --- */}
             <div>
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><User size={20}/> Anggota Keluarga</h3>
                 <div className="space-y-6">
                 {members.map((member, index) => (
-                    <div key={index} className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm relative group hover:border-teal-400 transition-all">
+                    <div key={index} className={`p-6 rounded-xl border ${Object.keys(errors).some(k => k.startsWith(`member_${index}`)) ? 'border-red-300 bg-red-50/30' : 'border-gray-200 bg-white'} shadow-sm relative group hover:border-teal-400 transition-all`}>
                         <div className="absolute -left-3 top-6 bg-teal-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow ring-4 ring-white">{index + 1}</div>
                         {members.length > 1 && (
                             <button type="button" onClick={() => removeMember(index)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={20} /></button>
                         )}
                         
+                        {Object.keys(errors).some(k => k.startsWith(`member_${index}`)) && <div className="mb-4 text-red-500 text-xs font-bold flex items-center gap-1 ml-4"><AlertCircle size={14}/> Lengkapi data anggota ini</div>}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pl-4">
                             {/* Identitas Utama */}
                             <div className="lg:col-span-2">
-                                <label className="label flex items-center gap-1"><User size={12}/> Nama Lengkap</label>
-                                <input className="input-field font-bold" value={member.nama} onChange={(e) => handleMemberChange(index, 'nama', e.target.value)} required placeholder="Sesuai KTP" />
+                                <label className="label flex items-center gap-1"><User size={12}/> Nama Lengkap *</label>
+                                <input className={`input-field font-bold ${errors[`member_${index}_nama`] ? 'border-red-500 bg-red-50' : ''}`} value={member.nama} onChange={(e) => handleMemberChange(index, 'nama', e.target.value)} placeholder="Sesuai KTP" />
+                                <ErrorMsg msg={errors[`member_${index}_nama`]} />
                             </div>
                             <div className="lg:col-span-2">
-                                <label className="label flex items-center gap-1"><FileText size={12}/> NIK</label>
-                                <input type="number" className="input-field font-mono" value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} required placeholder="16 Digit Angka" />
+                                <label className="label flex items-center gap-1"><FileText size={12}/> NIK *</label>
+                                <input type="number" className={`input-field font-mono ${errors[`member_${index}_nik`] ? 'border-red-500 bg-red-50' : ''}`} value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} placeholder="16 Digit Angka" />
+                                <ErrorMsg msg={errors[`member_${index}_nik`]} />
                             </div>
 
-                            {/* TTL & Agama (Baris yang sebelumnya tidak rapi) */}
+                            {/* TTL & Agama */}
                             <div>
-                                <label className="label flex items-center gap-1"><MapPin size={12}/> Tempat Lahir</label>
-                                <input className="input-field" value={member.tempatLahir} onChange={(e) => handleMemberChange(index, 'tempatLahir', e.target.value)} placeholder="Kota Kelahiran" />
+                                <label className="label flex items-center gap-1"><MapPin size={12}/> Tempat Lahir *</label>
+                                <input className={`input-field ${errors[`member_${index}_tempatLahir`] ? 'border-red-500 bg-red-50' : ''}`} value={member.tempatLahir} onChange={(e) => handleMemberChange(index, 'tempatLahir', e.target.value)} placeholder="Kota Kelahiran" />
+                                <ErrorMsg msg={errors[`member_${index}_tempatLahir`]} />
                             </div>
                             <div>
-                                <label className="label flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label>
-                                <input type="date" className="input-field" value={member.tanggalLahir} onChange={(e) => handleMemberChange(index, 'tanggalLahir', e.target.value)} />
+                                <label className="label flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir *</label>
+                                <input type="date" className={`input-field ${errors[`member_${index}_tanggalLahir`] ? 'border-red-500 bg-red-50' : ''}`} value={member.tanggalLahir} onChange={(e) => handleMemberChange(index, 'tanggalLahir', e.target.value)} />
+                                <ErrorMsg msg={errors[`member_${index}_tanggalLahir`]} />
                             </div>
                              <div>
-                                {/* FIXED: Tambahkan Ikon Buku dan class flex agar sejajar */}
                                 <label className="label flex items-center gap-1"><BookOpen size={12}/> Agama</label>
                                 <select className="input-field" value={member.agama} onChange={(e) => handleMemberChange(index, 'agama', e.target.value)}>
                                     <option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option>
@@ -200,8 +265,9 @@ export default function PublicForm() {
                                 </select>
                             </div>
                             <div className="lg:col-span-2">
-                                <label className="label flex items-center gap-1"><Briefcase size={12}/> Pekerjaan</label>
-                                <input className="input-field" value={member.pekerjaan} onChange={(e) => handleMemberChange(index, 'pekerjaan', e.target.value)} placeholder="Contoh: Karyawan Swasta / Pelajar" />
+                                <label className="label flex items-center gap-1"><Briefcase size={12}/> Pekerjaan *</label>
+                                <input className={`input-field ${errors[`member_${index}_pekerjaan`] ? 'border-red-500 bg-red-50' : ''}`} value={member.pekerjaan} onChange={(e) => handleMemberChange(index, 'pekerjaan', e.target.value)} placeholder="Contoh: Karyawan Swasta / Pelajar" />
+                                <ErrorMsg msg={errors[`member_${index}_pekerjaan`]} />
                             </div>
                             <div>
                                 <label className="label flex items-center gap-1"><UserCheck size={12}/> Peran Keluarga</label>
@@ -212,8 +278,9 @@ export default function PublicForm() {
 
                              {/* Kontak */}
                             <div>
-                                <label className="label flex items-center gap-1"><Phone size={12}/> No. HP (WA)</label>
-                                <input className="input-field" value={member.noHp} onChange={(e) => handleMemberChange(index, 'noHp', e.target.value)} placeholder="08..." />
+                                <label className="label flex items-center gap-1"><Phone size={12}/> No. HP (WA) {index === 0 && '*'}</label>
+                                <input className={`input-field ${errors[`member_${index}_noHp`] ? 'border-red-500 bg-red-50' : ''}`} value={member.noHp} onChange={(e) => handleMemberChange(index, 'noHp', e.target.value)} placeholder="08..." />
+                                <ErrorMsg msg={errors[`member_${index}_noHp`]} />
                             </div>
                             <div className="lg:col-span-2">
                                 <label className="label flex items-center gap-1"><Mail size={12}/> Email</label>
@@ -235,9 +302,10 @@ export default function PublicForm() {
             </div>
 
             <div className="pt-6 border-t border-gray-100">
-                <button type="submit" disabled={loading} className="w-full bg-teal-800 text-white font-bold py-4 rounded-xl hover:bg-teal-900 transition-all shadow-lg shadow-teal-900/20 flex justify-center items-center gap-2 transform hover:-translate-y-0.5">
-                    {loading ? 'Sedang Menyimpan...' : <><Send size={20} /> Kirim Data Sensus</>}
+                <button type="submit" disabled={loading} className="w-full bg-teal-800 text-white font-bold py-4 rounded-xl hover:bg-teal-900 transition-all shadow-lg shadow-teal-900/20 flex justify-center items-center gap-2 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {loading ? 'Sedang Memvalidasi & Menyimpan...' : <><Send size={20} /> Kirim Data Sensus</>}
                 </button>
+                {Object.keys(errors).length > 0 && <p className="text-red-500 text-center mt-4 font-bold flex items-center justify-center gap-2"><AlertCircle/> Terdapat data yang belum diisi di atas.</p>}
             </div>
             </form>
             
