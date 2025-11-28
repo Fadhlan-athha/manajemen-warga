@@ -1,21 +1,48 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
+// Import semua halaman
 import PublicForm from './components/PublicForm';
 import AdminDashboard from './pages/AdminDashboard';
+import PublicFinance from './pages/PublicFinance';
+import PublicSurat from './pages/PublicSurat'; // <--- WAJIB ADA (Pastikan file ini sudah dibuat)
+import PanicButton from './components/PanicButton';
+
+// Komponen Wrapper untuk menampilkan PanicButton
+function LayoutWithPanicButton({ children }) {
+  const location = useLocation();
+  const isAdmin = location.pathname.startsWith('/admin');
+
+  return (
+    <>
+      {children}
+      {/* Tampilkan tombol Panic hanya jika BUKAN halaman admin */}
+      {!isAdmin && <PanicButton />}
+    </>
+  );
+}
 
 export default function App() {
   return (
     <Router>
-      <Routes>
-        {/* Rute Utama (/) untuk Warga mengisi data */}
-        <Route path="/" element={<PublicForm />} />
+      <LayoutWithPanicButton>
+        <Routes>
+          {/* 1. Halaman Utama (Sensus & Menu) */}
+          <Route path="/" element={<PublicForm />} />
 
-        {/* Rute Admin (/admin) untuk Dashboard & Login */}
-        <Route path="/admin" element={<AdminDashboard />} />
+          {/* 2. Halaman Transparansi Keuangan */}
+          <Route path="/transparansi" element={<PublicFinance />} />
 
-        {/* Jika halaman tidak ditemukan (404), kembalikan ke form warga */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+          {/* 3. Halaman Layanan Surat (INI YANG SEBELUMNYA KURANG) */}
+          <Route path="/surat" element={<PublicSurat />} />
+
+          {/* 4. Halaman Admin */}
+          <Route path="/admin" element={<AdminDashboard />} />
+
+          {/* Fallback: Jika halaman tidak ditemukan, balik ke utama */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </LayoutWithPanicButton>
     </Router>
   );
 }
