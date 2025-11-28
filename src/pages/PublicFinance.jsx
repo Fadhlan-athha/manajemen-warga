@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { dbHelper } from '../utils/db';
 import { Wallet, ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 export default function PublicFinance() {
   const [transaksiList, setTransaksiList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,11 @@ export default function PublicFinance() {
   const totalPemasukan = transaksiList.filter(t => t.tipe === 'Pemasukan').reduce((acc, curr) => acc + Number(curr.nominal), 0);
   const totalPengeluaran = transaksiList.filter(t => t.tipe === 'Pengeluaran').reduce((acc, curr) => acc + Number(curr.nominal), 0);
   const saldo = totalPemasukan - totalPengeluaran;
+
+  const chartData = [
+    { name: 'Pemasukan', value: totalPemasukan, color: '#16a34a' }, // Green
+    { name: 'Pengeluaran', value: totalPengeluaran, color: '#dc2626' } // Red
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -56,6 +61,48 @@ export default function PublicFinance() {
                  <p className="font-bold text-gray-700">Rp {totalPengeluaran.toLocaleString('id-ID')}</p>
               </div>
            </div>
+        </div>
+
+        {/* --- GRAFIK BARU --- */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wide">Grafik Arus Kas</h3>
+            <div className="h-64 w-full"> {/* Ubah tinggi jadi h-64 agar lebih proporsional */}
+                <ResponsiveContainer width="100%" height="100%">
+                    {/* HAPUS layout="vertical" agar bar berdiri tegak */}
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        
+                        {/* XAxis: Menampilkan Nama (Pemasukan/Pengeluaran) di BAWAH */}
+                        <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{fontSize: 12, fontWeight: 'bold', fill: '#6b7280'}} 
+                            dy={10} // Jarak tulisan ke chart
+                        />
+
+                        {/* YAxis: Menampilkan Angka di KIRI */}
+                        <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tickFormatter={(value) => `${(value/1000000).toFixed(1)}jt`} // Format jadi Juta biar ringkas
+                            tick={{fontSize: 10, fill: '#9ca3af'}}
+                        />
+
+                        <Tooltip 
+                            cursor={{fill: '#f3f4f6'}}
+                            formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`} 
+                            contentStyle={{borderRadius: '8px', border: 'none',boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                        />
+
+                        <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={60}>
+                             {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                             ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </div>
 
         {/* List Transaksi */}

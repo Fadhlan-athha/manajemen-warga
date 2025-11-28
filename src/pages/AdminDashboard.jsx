@@ -8,6 +8,7 @@ import { supabase } from '../utils/supabaseClient';
 import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import Login from '../components/Login';
+import DashboardCharts from '../components/DashboardCharts';
 
 // Leaflet Imports
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -242,8 +243,15 @@ export default function AdminDashboard() {
                   <StatCard title="Kepala Keluarga" value={Object.keys(groupedFamilies).length} icon={<Home className="text-purple-500" />} color="bg-purple-50 border-purple-200" />
                   <StatCard title="Saldo Kas" value={`Rp ${saldoAkhir.toLocaleString('id-ID')}`} icon={<Wallet className="text-teal-500" />} color="bg-teal-50 border-teal-200" />
                   <StatCard title="Laporan Aktif" value={laporanList.filter(l => l.status !== 'Selesai').length} icon={<AlertTriangle className="text-red-500" />} color="bg-red-50 border-red-200" />
+                </div>
+               <div className="mt-8 w-full">
+                  <DashboardCharts 
+                      wargaList={wargaList} 
+                      transaksiList={transaksiList} 
+                      laporanList={laporanList} 
+                  />
                </div>
-            </div>
+               </div>
           )}
 
           {activeTab === 'warga' && (
