@@ -1,65 +1,85 @@
 import { supabase } from './supabaseClient';
 
-// Helper Format Data
+// Helper Format Data (Mapping Database <-> Aplikasi)
 const toDbPayload = (data, householdData) => {
   return {
-    // --- Data Rumah ---
+    nik: data.nik,
+    nama: data.nama,
     kk: householdData.kk,       
     no_rumah: householdData.noRumah, 
     rt: householdData.rt,
-    rw: householdData.rw, // <--- BARU       
+    rw: householdData.rw,       
     alamat: householdData.alamat, 
     foto_kk_url: householdData.fotoUrl, 
     latitude: householdData.latitude,
     longitude: householdData.longitude,
-
-    // --- Data Personal ---
-    nik: data.nik,
-    nama: data.nama,
     jenis_kelamin: data.jenisKelamin,
-    tempat_lahir: data.tempatLahir,     // <--- BARU
-    tanggal_lahir: data.tanggalLahir,   // <--- BARU
-    agama: data.agama,                  // <--- BARU
-    pekerjaan: data.pekerjaan,          // <--- BARU
-    status_perkawinan: data.statusPerkawinan, // <--- BARU
-    golongan_darah: data.golonganDarah, // <--- BARU
     status: data.status,
     no_hp: data.noHp,
     email: data.email,          
-    peran_keluarga: data.peran  
+    peran_keluarga: data.peran,
+    // Data Baru
+    tempat_lahir: data.tempatLahir,
+    tanggal_lahir: data.tanggalLahir,
+    agama: data.agama,
+    pekerjaan: data.pekerjaan,
+    status_perkawinan: data.statusPerkawinan,
+    golongan_darah: data.golonganDarah
   };
 };
 
 const fromDbPayload = (data) => ({
   ...data,
-  // Mapping balik dari DB ke State React
   jenisKelamin: data.jenis_kelamin,
   noHp: data.no_hp,
   noRumah: data.no_rumah,
   fotoUrl: data.foto_kk_url,
   peran: data.peran_keluarga,
-  // Field Baru
+  latitude: data.latitude,
+  longitude: data.longitude,
+  // Data Baru
   tempatLahir: data.tempat_lahir,
   tanggalLahir: data.tanggal_lahir,
   statusPerkawinan: data.status_perkawinan,
-  golonganDarah: data.golongan_darah,
-  // Latitude & Longitude
-  latitude: data.latitude,
-  longitude: data.longitude
+  golonganDarah: data.golongan_darah
 });
 
-// --- FUNGSI WA ---
+// --- FUNGSI WA (FORMAT PESAN DIPERBAIKI) ---
 const sendWhatsApp = async (laporan) => {
   const token = import.meta.env.VITE_WA_API_TOKEN;
   const targetGroup = import.meta.env.VITE_WA_TARGET_GROUP;
   if (!token || !targetGroup) return;
 
-  const message = `🚨 *DARURAT RW* 🚨\n${laporan.jenis_kejadian} di ${laporan.lokasi}\nPelapor: ${laporan.pelapor_nama}`;
+  // Format Waktu Indonesia (Contoh: Kamis, 27/11/2025, 09.48.10)
+  const waktu = new Date().toLocaleString('id-ID', {
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'numeric', 
+    day: 'numeric',
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit'
+  });
+
+  // Template Pesan Profesional Sesuai Gambar
+  const message = `🔴 *PERINGATAN DINI - SISTEM RW* 🔴\n\n` +
+    `Telah diterima laporan darurat baru!\n\n` +
+    `🔴 *JENIS:* ${laporan.jenis_kejadian}\n` +
+    `📍 *LOKASI:* ${laporan.lokasi}\n` +
+    `👤 *PELAPOR:* ${laporan.pelapor_nama || 'Anonim'}\n` +
+    `📝 *KET:* ${laporan.deskripsi || '-'}\n` +
+    `🕒 *WAKTU:* ${waktu}\n\n` +
+    `Mohon petugas keamanan / warga terdekat segera merapat!`;
   
   try {
     const formData = new FormData();
     formData.append('target', targetGroup);
     formData.append('message', message);
+    
+    // Khusus Fonnte: Jika lokasi adalah link Google Maps, biasanya akan otomatis preview
+    // Jika ingin mengirim lokasi sebagai attachment location, itu butuh API khusus, 
+    // tapi mengirim Link di dalam body text sudah cukup untuk memunculkan preview peta di WA.
+
     await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { Authorization: token },
@@ -78,7 +98,7 @@ export const dbHelper = {
   getWargaByNIK: async (nik) => {
     const { data, error } = await supabase.from('warga').select('*').eq('nik', nik).single();
     if (error && error.code !== 'PGRST116') throw error; 
-    return data;
+    return data ? fromDbPayload(data) : null;
   },
   uploadKK: async (file, noKK) => {
     if (!file) return null;
@@ -98,9 +118,12 @@ export const dbHelper = {
   update: async (formData) => {
     const payload = {
       nama: formData.nama, nik: formData.nik, kk: formData.kk,
-      no_rumah: formData.noRumah, rt: formData.rt, alamat: formData.alamat,
+      no_rumah: formData.noRumah, rt: formData.rt, rw: formData.rw, alamat: formData.alamat,
       jenis_kelamin: formData.jenisKelamin, status: formData.status,
       no_hp: formData.noHp, email: formData.email, peran_keluarga: formData.peran,
+      tempat_lahir: formData.tempatLahir, tanggal_lahir: formData.tanggalLahir,
+      agama: formData.agama, pekerjaan: formData.pekerjaan,
+      status_perkawinan: formData.statusPerkawinan, golongan_darah: formData.golonganDarah,
       latitude: formData.latitude, longitude: formData.longitude
     };
     const { data, error } = await supabase.from('warga').update(payload).eq('id', formData.id).select();
@@ -132,7 +155,10 @@ export const dbHelper = {
   },
   addLaporan: async (laporan) => {
     const { data, error } = await supabase.from('laporan_darurat').insert([laporan]).select();
-    if (error) throw error; sendWhatsApp(laporan); return data[0];
+    if (error) throw error; 
+    // Kirim Notif WA setelah simpan ke DB
+    sendWhatsApp(laporan); 
+    return data[0];
   },
   updateStatusLaporan: async (id, status) => {
     const { data, error } = await supabase.from('laporan_darurat').update({ status }).eq('id', id).select();
@@ -143,13 +169,12 @@ export const dbHelper = {
     if (error) throw error; return true;
   },
 
-  // --- SURAT PENGANTAR (UPDATED) ---
+  // --- SURAT PENGANTAR ---
   getSurat: async () => {
     const { data, error } = await supabase.from('pengajuan_surat').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
   getSuratByNIK: async (nik) => {
-    // Pastikan select mengambil SEMUA kolom termasuk file_url dan status
     const { data, error } = await supabase.from('pengajuan_surat').select('*').eq('nik', nik).order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
@@ -157,8 +182,6 @@ export const dbHelper = {
     const { data, error } = await supabase.from('pengajuan_surat').insert([surat]).select();
     if (error) throw error; return data[0];
   },
-  
-  // Fungsi Baru: Upload File Surat
   uploadFileSurat: async (file) => {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -168,12 +191,9 @@ export const dbHelper = {
     const { data } = supabase.storage.from('surat-resmi').getPublicUrl(fileName);
     return data.publicUrl;
   },
-
-  // Fungsi Update Status (Menerima URL File)
   updateStatusSurat: async (id, status, nomor_surat = null, file_url = null) => {
     const payload = { status, nomor_surat };
-    if (file_url) payload.file_url = file_url; // Simpan link file jika ada
-
+    if (file_url) payload.file_url = file_url;
     const { data, error } = await supabase.from('pengajuan_surat').update(payload).eq('id', id).select();
     if (error) throw error; return data[0];
   }

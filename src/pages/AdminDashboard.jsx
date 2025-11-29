@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Home, Plus, Trash2, Edit, Menu, Search, ExternalLink, 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, FileText, Check, X as XIcon, Map as MapIcon, MapPin,
-  ChevronDown, ChevronRight, User, Calendar, Briefcase, Heart, BookOpen, Mail, Eye // Tambah Eye icon
+  ChevronDown, ChevronRight, User, Calendar, Briefcase, Heart, BookOpen, Mail, Eye, Filter, Locate // Tambah Locate icon
 } from 'lucide-react';
 import { dbHelper } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
@@ -13,7 +13,7 @@ import DashboardCharts from '../components/DashboardCharts';
 import { generateSuratPDF } from '../utils/suratGenerator';
 
 // Leaflet Imports
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet'; // Tambah useMap & CircleMarker
 import L from 'leaflet';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -27,6 +27,41 @@ L.Icon.Default.mergeOptions({
     shadowUrl: markerShadow,
 });
 
+// --- KOMPONEN BARU: TOMBOL LOKASI SAYA ---
+function LocationMarker() {
+  const [position, setPosition] = useState(null);
+  const map = useMap();
+
+  const handleLocate = () => {
+    map.locate().on("locationfound", function (e) {
+      setPosition(e.latlng);
+      map.flyTo(e.latlng, 18); // Zoom in close
+    }).on("locationerror", function (e) {
+      alert("Gagal mengambil lokasi: " + e.message);
+    });
+  };
+
+  return (
+    <>
+       {/* Tombol Floating di Peta */}
+       <div className="leaflet-bottom leaflet-right" style={{marginBottom: '90px', marginRight: '10px', pointerEvents: 'auto', zIndex: 1000}}>
+          <div className="bg-white border-2 border-gray-300 rounded shadow-sm cursor-pointer hover:bg-gray-100" onClick={handleLocate} title="Lokasi Saya">
+             <div className="p-2 text-gray-700">
+                <Locate size={20}/>
+             </div>
+          </div>
+       </div>
+       
+       {/* Marker Posisi Admin (Lingkaran Biru) */}
+       {position && (
+          <CircleMarker center={position} radius={8} pathOptions={{ color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }}>
+            <Popup>📍 Lokasi Anda Saat Ini</Popup>
+          </CircleMarker>
+       )}
+    </>
+  );
+}
+
 export default function AdminDashboard() {
   // --- STATE ---
   const [session, setSession] = useState(null);
@@ -36,18 +71,19 @@ export default function AdminDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const [expandedKK, setExpandedKK] = useState({});
+  const [mapFilter, setMapFilter] = useState('Semua');
 
   const [wargaList, setWargaList] = useState([]);
   const [transaksiList, setTransaksiList] = useState([]);
   const [laporanList, setLaporanList] = useState([]);
   const [suratList, setSuratList] = useState([]);
 
-  // Modal Edit/Add State
+  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentId, setCurrentId] = useState(null); 
 
-  // Modal Detail KK State (BARU)
+  // Modal Detail KK State
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedFamilyHead, setSelectedFamilyHead] = useState(null);
 
@@ -80,6 +116,19 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (session) loadData();
   }, [session]);
+
+  // Helper Hitung Umur
+  const calculateAge = (dateString) => {
+    if (!dateString) return 0;
+    const today = new Date();
+    const birthDate = new Date(dateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -257,7 +306,7 @@ export default function AdminDashboard() {
 
                            return (
                                <React.Fragment key={kkKey}>
-                                   {/* KEPALA KELUARGA (Baris Utama) */}
+                                   {/* KEPALA KELUARGA */}
                                    <tr 
                                       className={`cursor-pointer transition-colors ${isExpanded ? 'bg-teal-50 hover:bg-teal-100 border-l-4 border-l-teal-600' : 'bg-white hover:bg-gray-50 border-l-4 border-l-transparent'}`}
                                       onClick={() => toggleKK(kkKey)}
@@ -287,14 +336,13 @@ export default function AdminDashboard() {
                                         <div className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Mail size={10}/> {head.email || '-'}</div>
                                      </td>
                                      <td className="p-4 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
-                                       {/* TOMBOL LIHAT DETAIL (MATA) */}
                                        <button onClick={() => { setSelectedFamilyHead(head); setShowDetailModal(true); }} className="text-teal-600 hover:bg-teal-100 p-2 rounded transition-colors" title="Lihat Detail & Foto KK"><Eye size={18}/></button>
                                        <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="text-blue-600 hover:bg-blue-100 p-2 rounded transition-colors" title="Edit"><Edit size={18}/></button>
                                        <button onClick={() => handleDelete(head.id)} className="text-red-500 hover:bg-red-100 p-2 rounded transition-colors" title="Hapus"><Trash2 size={18}/></button>
                                      </td>
                                    </tr>
 
-                                   {/* ANGGOTA KELUARGA (Baris-baris tambahan dalam tabel) */}
+                                   {/* ANGGOTA KELUARGA */}
                                    {isExpanded && members.map((member) => (
                                       <tr key={member.id} className="bg-gray-50 hover:bg-gray-100 animate-in slide-in-from-top-1">
                                           <td className="p-4 text-center relative">
@@ -336,30 +384,89 @@ export default function AdminDashboard() {
 
           {activeTab === 'peta' && (
             <div className="h-[80vh] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col animate-in fade-in">
-                <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-700 flex items-center gap-2"><MapIcon size={20}/> Peta Sebaran Warga</h3>
-                    <div className="text-xs text-gray-500">Klik marker untuk detail.</div>
+                <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h3 className="font-bold text-gray-700 flex items-center gap-2"><MapIcon size={20}/> Peta Sebaran Warga</h3>
+                        <div className="text-xs text-gray-500">Menampilkan lokasi tempat tinggal warga.</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <Filter size={16} className="text-gray-500"/>
+                        <select 
+                            className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg p-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                            value={mapFilter}
+                            onChange={(e) => setMapFilter(e.target.value)}
+                        >
+                            <option value="Semua">Semua Warga</option>
+                            <option value="Lansia">Ada Lansia ({'>'}60 Thn)</option>
+                            <option value="Balita">Ada Balita (0-5 Thn)</option>
+                            <option value="Perempuan">KK Perempuan</option>
+                        </select>
+                    </div>
                 </div>
+
                 <div className="flex-1 z-0 relative">
                     <MapContainer center={[-6.200000, 106.816666]} zoom={15} style={{ height: '100%', width: '100%' }}>
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
+                        
+                        {/* KOMPONEN TOMBOL LOKASI */}
+                        <LocationMarker />
+
                         {Object.keys(groupedFamilies).map(kkKey => {
-                            const head = groupedFamilies[kkKey].head;
+                            const family = groupedFamilies[kkKey];
+                            const head = family.head;
                             if (!head || !head.latitude || !head.longitude) return null;
+
+                            // LOGIKA FILTER
+                            let isVisible = true;
+                            const allMembers = [head, ...family.members];
+
+                            if (mapFilter === 'Lansia') {
+                                isVisible = allMembers.some(m => calculateAge(m.tanggalLahir) >= 60);
+                            } else if (mapFilter === 'Balita') {
+                                isVisible = allMembers.some(m => calculateAge(m.tanggalLahir) > 0 && calculateAge(m.tanggalLahir) <= 5);
+                            } else if (mapFilter === 'Perempuan') {
+                                isVisible = head.jenisKelamin === 'Perempuan';
+                            }
+
+                            if (!isVisible) return null;
+
                             return (
                                 <Marker key={head.id} position={[head.latitude, head.longitude]}>
                                     <Popup>
-                                        <div className="min-w-[150px]">
-                                            <h4 className="font-bold text-sm mb-1">{head.nama}</h4>
-                                            <div className="text-xs text-gray-600 mb-2">Rumah: <b>{head.noRumah}</b> (RT {head.rt}/RW {head.rw})</div>
-                                            <div className="text-xs">Anggota: {groupedFamilies[kkKey].members.length + 1} Orang</div>
-                                            <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="mt-2 text-teal-600 text-xs underline">Edit Data</button>
+                                        <div className="min-w-[180px]">
+                                            <div className="flex items-center gap-2 mb-2 border-b pb-2">
+                                                <div className={`w-2 h-8 rounded ${mapFilter !== 'Semua' ? 'bg-orange-500' : 'bg-teal-500'}`}></div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm leading-tight">{head.nama}</h4>
+                                                    <span className="text-[10px] text-gray-500">KK: {head.kk}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-1 text-xs text-gray-600 mb-2">
+                                                <div className="flex justify-between"><span>Rumah:</span> <b>{head.noRumah}</b></div>
+                                                <div className="flex justify-between"><span>RT/RW:</span> <b>{head.rt}/{head.rw}</b></div>
+                                                <div className="flex justify-between"><span>Jml Anggota:</span> <b>{allMembers.length} Orang</b></div>
+                                            </div>
+
+                                            {mapFilter === 'Lansia' && <div className="bg-orange-50 text-orange-800 p-1.5 rounded text-[10px] font-bold text-center border border-orange-100">👴 Rumah ini memiliki Lansia</div>}
+                                            {mapFilter === 'Balita' && <div className="bg-blue-50 text-blue-800 p-1.5 rounded text-[10px] font-bold text-center border border-blue-100">👶 Rumah ini memiliki Balita</div>}
+
+                                            <button onClick={() => { setFormData(head); setCurrentId(head.id); setEditMode(true); setShowModal(true); }} className="mt-2 w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs font-bold transition-colors">
+                                                Edit Data
+                                            </button>
                                         </div>
                                     </Popup>
                                 </Marker>
                             )
                         })}
                     </MapContainer>
+                    
+                    {mapFilter !== 'Semua' && (
+                        <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow-lg border border-orange-200 flex items-center gap-2 text-xs font-bold text-orange-700 animate-in slide-in-from-bottom-2">
+                            <Filter size={14}/> Mode Filter: {mapFilter}
+                        </div>
+                    )}
                 </div>
             </div>
           )}
@@ -473,7 +580,7 @@ export default function AdminDashboard() {
                         <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase">Data Rumah & KK</h4>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="md:col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">No. KK</label><input className="w-full border p-2 rounded mt-1" value={formData.kk} onChange={e => setFormData({...formData, kk: e.target.value})} /></div>
+                                <div className="md:col-span-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">No. KK</label><input className="w-full border p-2 rounded mt-1" value={formData.kk} onChange={e => setFormData({...formData, kk: e.target.value})} /></div>
                                 <div><label className="text-xs font-bold text-gray-500 uppercase">No. Rumah</label><input className="w-full border p-2 rounded mt-1" value={formData.noRumah} onChange={e => setFormData({...formData, noRumah: e.target.value})} /></div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div><label className="text-xs font-bold text-gray-500 uppercase">RT</label><select className="w-full border p-2 rounded mt-1" value={formData.rt} onChange={e => setFormData({...formData, rt: e.target.value})}><option>01</option><option>02</option><option>03</option></select></div>
@@ -486,18 +593,25 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
                         </div>
+                        
+                        {/* BAGIAN 2: DATA PERSONAL LENGKAP (UPDATE ICON & LABEL) */}
                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Nama Lengkap</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><FileText size={12}/> NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
+                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><MapPin size={12}/> Tempat Lahir</label><input className="w-full border p-2 rounded mt-1" value={formData.tempatLahir} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData,tanggalLahir: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                            
                             <div className="grid grid-cols-2 gap-2">
                                 <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><BookOpen size={12}/> Agama</label><select className="w-full border p-2 rounded mt-1" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option></select></div>
                                 <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Heart size={12}/> Gol. Darah</label><select className="w-full border p-2 rounded mt-1" value={formData.golonganDarah} onChange={e => setFormData({...formData, golonganDarah: e.target.value})}><option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
                             </div>
+
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> Pekerjaan</label><input className="w-full border p-2 rounded mt-1" value={formData.pekerjaan} onChange={e => setFormData({...formData, pekerjaan: e.target.value})} /></div>
+                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Status Perkawinan</label><select className="w-full border p-2 rounded mt-1" value={formData.statusPerkawinan} onChange={e => setFormData({...formData, statusPerkawinan: e.target.value})}><option>Kawin</option><option>Belum Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option></select></div>
-                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
+                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Mail size={12}/> Email</label><input className="w-full border p-2 rounded mt-1" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Jenis Kelamin</label><select className="w-full border p-2 rounded mt-1" value={formData.jenisKelamin} onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}><option>Laki-laki</option><option>Perempuan</option></select></div>
@@ -513,7 +627,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* MODAL DETAIL KK (BARU) */}
+      {/* MODAL DETAIL KK */}
       {showDetailModal && selectedFamilyHead && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in">
            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 relative">
