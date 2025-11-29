@@ -1,25 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { dbHelper } from '../utils/db';
-import { Wallet, ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, ArrowLeft, TrendingUp, TrendingDown, CreditCard, UploadCloud, X, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
+
 export default function PublicFinance() {
   const [transaksiList, setTransaksiList] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // State Modal Bayar
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payForm, setPayForm] = useState({ nik: '', nama: '', bulan: new Date().toISOString().slice(0,7), file: null });
+  const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       const data = await dbHelper.getKeuangan();
       setTransaksiList(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); } finally { setLoading(false); }
+  };
+
+  const handlePaySubmit = async (e) => {
+      e.preventDefault();
+      if (!payForm.file) return alert("Bukti transfer wajib diupload!");
+      
+      // Cek Nama via NIK (Simple validation)
+      const warga = await dbHelper.getWargaByNIK(payForm.nik);
+      if (!warga) return alert("NIK tidak ditemukan dalam data warga.");
+
+      setUploading(true);
+      try {
+          // 1. Upload Bukti
+          const url = await dbHelper.uploadBuktiTransfer(payForm.file, payForm.nik);
+          
+          // 2. Simpan Data
+          await dbHelper.bayarIuran({
+              nik: payForm.nik,
+              nama: warga.nama,
+              bulan_tahun: payForm.bulan,
+              nominal: 200000,
+              bukti_url: url,
+              status: 'Pending'
+          });
+          
+          alert("Pembayaran berhasil dikirim! Menunggu verifikasi admin.");
+          setShowPayModal(false);
+          setPayForm({ nik: '', nama: '', bulan: new Date().toISOString().slice(0,7), file: null });
+      } catch (err) {
+          alert("Gagal: " + err.message);
+      } finally {
+          setUploading(false);
+      }
   };
 
   const totalPemasukan = transaksiList.filter(t => t.tipe === 'Pemasukan').reduce((acc, curr) => acc + Number(curr.nominal), 0);
@@ -27,30 +60,35 @@ export default function PublicFinance() {
   const saldo = totalPemasukan - totalPengeluaran;
 
   const chartData = [
-    { name: 'Pemasukan', value: totalPemasukan, color: '#16a34a' }, // Green
-    { name: 'Pengeluaran', value: totalPengeluaran, color: '#dc2626' } // Red
+    { name: 'Pemasukan', value: totalPemasukan, color: '#16a34a' },
+    { name: 'Pengeluaran', value: totalPengeluaran, color: '#dc2626' }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
-      {/* Header */}
+    <div className="min-h-screen bg-gray-50 font-sans pb-20">
       <div className="bg-teal-800 text-white p-6 pb-24 relative overflow-hidden">
         <div className="max-w-3xl mx-auto relative z-10">
            <Link to="/" className="inline-flex items-center gap-2 text-teal-200 hover:text-white mb-4 transition-colors"><ArrowLeft size={16}/> Kembali ke Beranda</Link>
            <h1 className="text-3xl font-bold flex items-center gap-3"><Wallet /> Transparansi Kas RT</h1>
            <p className="text-teal-200 mt-2">Laporan keuangan real-time yang dapat diakses oleh seluruh warga.</p>
         </div>
-        {/* Dekorasi Background */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-teal-700 rounded-full mix-blend-multiply filter blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2"></div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 -mt-16 relative z-20">
-        {/* Kartu Saldo Utama */}
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 mb-8">
            <div className="text-center">
               <p className="text-gray-500 font-bold uppercase tracking-wider text-xs mb-1">Total Saldo Kas Saat Ini</p>
               <h2 className="text-4xl font-extrabold text-gray-800">Rp {saldo.toLocaleString('id-ID')}</h2>
            </div>
+           
+           {/* TOMBOL BAYAR IURAN */}
+           <div className="mt-6 flex justify-center">
+               <button onClick={() => setShowPayModal(true)} className="bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2 transform hover:-translate-y-1 transition-all animate-pulse">
+                   <CreditCard size={20}/> Bayar Iuran Air & Listrik
+               </button>
+           </div>
+
            <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-100">
               <div className="text-center">
                  <div className="flex items-center justify-center gap-1 text-green-600 mb-1 font-medium"><TrendingUp size={16}/> Pemasukan</div>
@@ -63,42 +101,18 @@ export default function PublicFinance() {
            </div>
         </div>
 
-        {/* --- GRAFIK BARU --- */}
+        {/* GRAFIK */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
             <h3 className="font-bold text-gray-700 mb-4 text-sm uppercase tracking-wide">Grafik Arus Kas</h3>
-            <div className="h-64 w-full"> {/* Ubah tinggi jadi h-64 agar lebih proporsional */}
+            <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    {/* HAPUS layout="vertical" agar bar berdiri tegak */}
                     <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        
-                        {/* XAxis: Menampilkan Nama (Pemasukan/Pengeluaran) di BAWAH */}
-                        <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{fontSize: 12, fontWeight: 'bold', fill: '#6b7280'}} 
-                            dy={10} // Jarak tulisan ke chart
-                        />
-
-                        {/* YAxis: Menampilkan Angka di KIRI */}
-                        <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tickFormatter={(value) => `${(value/1000000).toFixed(1)}jt`} // Format jadi Juta biar ringkas
-                            tick={{fontSize: 10, fill: '#9ca3af'}}
-                        />
-
-                        <Tooltip 
-                            cursor={{fill: '#f3f4f6'}}
-                            formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`} 
-                            contentStyle={{borderRadius: '8px', border: 'none',boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                        />
-
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 'bold', fill: '#6b7280'}} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tickFormatter={(value) => `${(value/1000000).toFixed(1)}jt`} tick={{fontSize: 10, fill: '#9ca3af'}} />
+                        <Tooltip cursor={{fill: '#f3f4f6'}} formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`} />
                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={60}>
-                             {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                             ))}
+                             {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
@@ -133,11 +147,39 @@ export default function PublicFinance() {
             </div>
           )}
         </div>
-        
-        <div className="mt-8 text-center text-xs text-gray-400 pb-8">
-           Data diperbarui secara real-time dari sistem kas RT.
-        </div>
       </div>
+
+      {/* MODAL FORM BAYAR */}
+      {showPayModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+                <div className="bg-teal-700 p-4 text-white flex justify-between items-center">
+                    <h3 className="font-bold flex items-center gap-2"><CreditCard size={18}/> Bayar Iuran Bulanan</h3>
+                    <button onClick={() => setShowPayModal(false)}><X size={20}/></button>
+                </div>
+                <form onSubmit={handlePaySubmit} className="p-6 space-y-4">
+                    <div className="bg-teal-50 text-teal-800 p-3 rounded-lg text-sm mb-2">
+                        Pembayaran untuk <b>Air & Listrik</b> sebesar <b>Rp 200.000</b>. Silakan transfer ke Bank RW dan upload buktinya.
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">NIK Anda</label>
+                        <input className="w-full border p-2 rounded mt-1" type="number" placeholder="16 Digit NIK" value={payForm.nik} onChange={e => setPayForm({...payForm, nik: e.target.value})} required/>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Untuk Bulan</label>
+                        <input className="w-full border p-2 rounded mt-1" type="month" value={payForm.bulan} onChange={e => setPayForm({...payForm, bulan: e.target.value})} required/>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Bukti Transfer</label>
+                        <input type="file" accept="image/*" className="w-full text-sm mt-1" onChange={e => setPayForm({...payForm, file: e.target.files[0]})} required/>
+                    </div>
+                    <button disabled={uploading} className="w-full bg-teal-600 text-white font-bold py-3 rounded-xl hover:bg-teal-700 transition-colors shadow flex justify-center">
+                        {uploading ? 'Mengirim...' : 'Kirim Bukti Pembayaran'}
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

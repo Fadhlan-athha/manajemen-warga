@@ -19,7 +19,7 @@ const toDbPayload = (data, householdData) => {
     email: data.email,          
     peran_keluarga: data.peran,
     tempat_lahir: data.tempatLahir,
-    tanggal_lahir: data.tanggal_lahir,
+    tanggal_lahir: data.tanggalLahir,
     agama: data.agama,
     pekerjaan: data.pekerjaan,
     status_perkawinan: data.statusPerkawinan,
@@ -39,14 +39,13 @@ const fromDbPayload = (data) => ({
   tempatLahir: data.tempat_lahir,
   tanggalLahir: data.tanggal_lahir,
   statusPerkawinan: data.status_perkawinan,
-  golongan_darah: data.golongan_darah
+  golonganDarah: data.golongan_darah
 });
 
 // --- SMART CONTENT GENERATOR (AI SEDERHANA) ---
 const generateSmartContent = (judul, kategori, tanggal) => {
   const tglStr = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) : 'Waktu akan diinformasikan menyusul';
   
-  // Template kata-kata berdasarkan kategori
   if (kategori === 'Penting') {
     return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\n` +
            `Kepada seluruh warga RT/RW setempat, diinformasikan hal berikut:\n\n` +
@@ -54,21 +53,19 @@ const generateSmartContent = (judul, kategori, tanggal) => {
            `Mohon perhatian khusus terkait hal ini demi keamanan dan kenyamanan lingkungan kita bersama.\n\n` +
            `📅 Berlaku/Terjadi: ${tglStr}\n\n` +
            `Terima kasih atas kerja samanya.\n` +
-           `_~ RW 024_`;
+           `_~ Pengurus RT/RW_`;
   } 
-  
   else if (kategori === 'Agenda') {
     return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\n` +
            `Halo Warga! Kami mengundang Bapak/Ibu/Sdr untuk hadir dalam kegiatan:\n\n` +
            `✨ *${judul}* ✨\n\n` +
            `Acara ini akan dilaksanakan pada:\n` +
            `📅 Tanggal: ${tglStr}\n` +
-           `📍 Tempat: Lingkungan RW 024\n\n` +
-           `Kehadiran warga sangat kami harapkan untuk mempererat silaturahmi.\n`+
-           '_~ RW 024_';
+           `📍 Tempat: Lingkungan RT/RW\n\n` +
+           `Kehadiran warga sangat kami harapkan untuk mempererat silaturahmi.\n` +
+           `_~ Panitia Kegiatan_`;
   } 
-  
-  else { // Kategori Info / Umum
+  else { 
     return `📢 *INFORMASI WARGA* 📢\n\n` +
            `Sekilas info untuk diketahui bersama:\n\n` +
            `*${judul}*\n\n` +
@@ -219,7 +216,8 @@ export const dbHelper = {
     const { data, error } = await supabase.from('pengumuman').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
-
+  
+  // FIX: Menangani useAI agar tidak dikirim ke DB
   addPengumuman: async (item, autoGenerateAI = false) => {
     // 1. Pisahkan useAI dari data asli (Clean Object)
     const { useAI, ...restItem } = item;
@@ -254,5 +252,59 @@ export const dbHelper = {
   deletePengumuman: async (id) => {
     const { error } = await supabase.from('pengumuman').delete().eq('id', id);
     if (error) throw error; return true;
+  },
+
+  // --- IURAN WARGA ---
+  getIuran: async () => {
+    const { data, error } = await supabase.from('iuran_warga').select('*').order('created_at', { ascending: false });
+    if (error) throw error; return data;
+  },
+  uploadBuktiTransfer: async (file, nik) => {
+    if (!file) return null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `bukti-${nik}-${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage.from('dokumen-warga').upload(fileName, file); 
+    if (error) throw error;
+    const { data } = supabase.storage.from('dokumen-warga').getPublicUrl(fileName);
+    return data.publicUrl;
+  },
+  bayarIuran: async (form) => {
+    const { data, error } = await supabase.from('iuran_warga').insert([form]).select();
+    if (error) throw error; return data[0];
+  },
+  verifikasiIuran: async (idIuran, dataIuran) => {
+    const { error: errUpdate } = await supabase.from('iuran_warga').update({ status: 'Lunas' }).eq('id', idIuran);
+    if (errUpdate) throw errUpdate;
+
+    const transaksiPayload = {
+        tipe: 'Pemasukan',
+        kategori: 'Iuran Air & Listrik',
+        nominal: dataIuran.nominal,
+        keterangan: `Pembayaran ${dataIuran.nama} (${dataIuran.bulan_tahun})`
+    };
+    const { error: errKas } = await supabase.from('transaksi_keuangan').insert([transaksiPayload]);
+    if (errKas) throw errKas;
+
+    return true;
+  },
+  broadcastTagihan: async (hariKe) => {
+    const bankInfo = "BCA 1234567890 a.n Bendahara RW"; 
+    const bulanIni = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    
+    let msgHeader = "";
+    if(hariKe === 1) msgHeader = "🔔 *REMINDER PEMBAYARAN IURAN (HARI 1)* 🔔";
+    else if(hariKe === 2) msgHeader = "⚠️ *REMINDER PEMBAYARAN IURAN (HARI 2)* ⚠️";
+    else msgHeader = "🔥 *PERINGATAN TERAKHIR PEMBAYARAN* 🔥";
+
+    const message = `${msgHeader}\n\n` +
+      `Kepada seluruh warga, diingatkan kembali untuk melakukan pembayaran iuran:\n` +
+      `💧⚡ *AIR & LISTRIK BULAN ${bulanIni.toUpperCase()}*\n\n` +
+      `💰 Nominal: *Rp 200.000*\n` +
+      `🏦 Transfer ke: *${bankInfo}*\n\n` +
+      `Mohon segera transfer dan upload bukti pembayaran melalui aplikasi warga.\n` +
+      `Terima kasih bagi yang sudah membayar. Abaikan pesan ini jika sudah lunas.\n` +
+      `_~ Bendahara RW_`;
+
+    await sendWhatsAppMessage(message);
   }
 };

@@ -1,5 +1,8 @@
 import React from 'react';
-import { Home, Users, Save, Database, X, LogOut, Wallet, AlertTriangle, FileText, Map, Megaphone } from 'lucide-react'; // Tambah Megaphone
+import { 
+  Home, Users, Save, Database, X, LogOut, Wallet, 
+  AlertTriangle, FileText, Map, Megaphone, BadgeCheck // Tambah BadgeCheck
+} from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
   return (
@@ -39,6 +42,16 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
             id="warga" label="Data Warga" icon={<Users size={20} />} 
             activeTab={activeTab} onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
           />
+          
+          {/* MENU BARU: VERIFIKASI IURAN */}
+          <NavButton 
+            id="verifikasi" 
+            label="Verifikasi Iuran" 
+            icon={<BadgeCheck size={20} />} 
+            activeTab={activeTab} 
+            onClick={() => { setActiveTab('verifikasi'); setIsOpen(false); }} 
+          />
+
           <NavButton 
             id="peta" label="Peta Sebaran" icon={<Map size={20} />} 
             activeTab={activeTab} onClick={() => { setActiveTab('peta'); setIsOpen(false); }} 
@@ -48,7 +61,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
             activeTab={activeTab} onClick={() => { setActiveTab('keuangan'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="pengumuman" label="Papan Informasi" icon={<Megaphone size={20} />}  // <--- MENU BARU
+            id="pengumuman" label="Papan Informasi" icon={<Megaphone size={20} />} 
             activeTab={activeTab} onClick={() => { setActiveTab('pengumuman'); setIsOpen(false); }} 
           />
           <NavButton 

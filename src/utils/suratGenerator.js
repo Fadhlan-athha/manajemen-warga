@@ -69,8 +69,8 @@ export const generateSuratPDF = (warga, suratData, nomorSurat) => {
   doc.setFontSize(16);
   doc.text("RUKUN TETANGGA 01 / RW 03", 105, 20, { align: "center" });
   doc.setFontSize(12);
-  doc.text("KELURAHAN SUKAMAJU, KECAMATAN SUKAJAYA", 105, 28, { align: "center" });
-  doc.text("KOTA JAKARTA SELATAN", 105, 34, { align: "center" });
+  doc.text("KELURAHAN JATIMAKMUR, KECAMATAN PONDOK GEDE", 105, 28, { align: "center" });
+  doc.text("KOTA BEKASI", 105, 34, { align: "center" });
   
   doc.setLineWidth(0.5);
   doc.line(20, 38, 190, 38);
