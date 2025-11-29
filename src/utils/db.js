@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 
-// Helper Format Data (Mapping Database <-> Aplikasi)
+// --- HELPER FORMAT DATA ---
 const toDbPayload = (data, householdData) => {
   return {
     nik: data.nik,
@@ -18,9 +18,8 @@ const toDbPayload = (data, householdData) => {
     no_hp: data.noHp,
     email: data.email,          
     peran_keluarga: data.peran,
-    // Data Baru
     tempat_lahir: data.tempatLahir,
-    tanggal_lahir: data.tanggalLahir,
+    tanggal_lahir: data.tanggal_lahir,
     agama: data.agama,
     pekerjaan: data.pekerjaan,
     status_perkawinan: data.statusPerkawinan,
@@ -37,49 +36,57 @@ const fromDbPayload = (data) => ({
   peran: data.peran_keluarga,
   latitude: data.latitude,
   longitude: data.longitude,
-  // Data Baru
   tempatLahir: data.tempat_lahir,
   tanggalLahir: data.tanggal_lahir,
   statusPerkawinan: data.status_perkawinan,
-  golonganDarah: data.golongan_darah
+  golongan_darah: data.golongan_darah
 });
 
-// --- FUNGSI WA (FORMAT PESAN DIPERBAIKI) ---
-const sendWhatsApp = async (laporan) => {
+// --- SMART CONTENT GENERATOR (AI SEDERHANA) ---
+const generateSmartContent = (judul, kategori, tanggal) => {
+  const tglStr = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) : 'Waktu akan diinformasikan menyusul';
+  
+  // Template kata-kata berdasarkan kategori
+  if (kategori === 'Penting') {
+    return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\n` +
+           `Kepada seluruh warga RT/RW setempat, diinformasikan hal berikut:\n\n` +
+           `*${judul.toUpperCase()}*\n\n` +
+           `Mohon perhatian khusus terkait hal ini demi keamanan dan kenyamanan lingkungan kita bersama.\n\n` +
+           `📅 Berlaku/Terjadi: ${tglStr}\n\n` +
+           `Terima kasih atas kerja samanya.\n` +
+           `_~ RW 024_`;
+  } 
+  
+  else if (kategori === 'Agenda') {
+    return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\n` +
+           `Halo Warga! Kami mengundang Bapak/Ibu/Sdr untuk hadir dalam kegiatan:\n\n` +
+           `✨ *${judul}* ✨\n\n` +
+           `Acara ini akan dilaksanakan pada:\n` +
+           `📅 Tanggal: ${tglStr}\n` +
+           `📍 Tempat: Lingkungan RW 024\n\n` +
+           `Kehadiran warga sangat kami harapkan untuk mempererat silaturahmi.\n`+
+           '_~ RW 024_';
+  } 
+  
+  else { // Kategori Info / Umum
+    return `📢 *INFORMASI WARGA* 📢\n\n` +
+           `Sekilas info untuk diketahui bersama:\n\n` +
+           `*${judul}*\n\n` +
+           `Semoga informasi ini bermanfaat bagi kita semua. Tetap jaga kesehatan dan kebersihan lingkungan.\n\n` +
+           `_~ Admin Sistem RW_`;
+  }
+};
+
+// --- FUNGSI KIRIM WA (GENERIC) ---
+const sendWhatsAppMessage = async (message) => {
   const token = import.meta.env.VITE_WA_API_TOKEN;
   const targetGroup = import.meta.env.VITE_WA_TARGET_GROUP;
   if (!token || !targetGroup) return;
 
-  // Format Waktu Indonesia (Contoh: Kamis, 27/11/2025, 09.48.10)
-  const waktu = new Date().toLocaleString('id-ID', {
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'numeric', 
-    day: 'numeric',
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit'
-  });
-
-  // Template Pesan Profesional Sesuai Gambar
-  const message = `🔴 *PERINGATAN DINI - SISTEM RW* 🔴\n\n` +
-    `Telah diterima laporan darurat baru!\n\n` +
-    `🔴 *JENIS:* ${laporan.jenis_kejadian}\n` +
-    `📍 *LOKASI:* ${laporan.lokasi}\n` +
-    `👤 *PELAPOR:* ${laporan.pelapor_nama || 'Anonim'}\n` +
-    `📝 *KET:* ${laporan.deskripsi || '-'}\n` +
-    `🕒 *WAKTU:* ${waktu}\n\n` +
-    `Mohon petugas keamanan / warga terdekat segera merapat!`;
-  
   try {
     const formData = new FormData();
     formData.append('target', targetGroup);
     formData.append('message', message);
-    
-    // Khusus Fonnte: Jika lokasi adalah link Google Maps, biasanya akan otomatis preview
-    // Jika ingin mengirim lokasi sebagai attachment location, itu butuh API khusus, 
-    // tapi mengirim Link di dalam body text sudah cukup untuk memunculkan preview peta di WA.
-
     await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { Authorization: token },
@@ -112,8 +119,7 @@ export const dbHelper = {
   addFamily: async (members, householdData) => {
     const payload = members.map(member => toDbPayload(member, householdData));
     const { data, error } = await supabase.from('warga').upsert(payload, { onConflict: 'nik' }).select();
-    if (error) throw error;
-    return data;
+    if (error) throw error; return data;
   },
   update: async (formData) => {
     const payload = {
@@ -156,8 +162,18 @@ export const dbHelper = {
   addLaporan: async (laporan) => {
     const { data, error } = await supabase.from('laporan_darurat').insert([laporan]).select();
     if (error) throw error; 
-    // Kirim Notif WA setelah simpan ke DB
-    sendWhatsApp(laporan); 
+    
+    // Format Pesan Darurat
+    const waktu = new Date().toLocaleString('id-ID');
+    const msg = `🔴 *PERINGATAN DINI - SISTEM RW* 🔴\n\n` +
+      `Telah diterima laporan darurat baru!\n\n` +
+      `🔴 *JENIS:* ${laporan.jenis_kejadian}\n` +
+      `📍 *LOKASI:* ${laporan.lokasi}\n` +
+      `👤 *PELAPOR:* ${laporan.pelapor_nama || 'Anonim'}\n` +
+      `🕒 *WAKTU:* ${waktu}\n\n` +
+      `Mohon petugas keamanan segera merapat!`;
+      
+    sendWhatsAppMessage(msg); 
     return data[0];
   },
   updateStatusLaporan: async (id, status) => {
@@ -196,5 +212,47 @@ export const dbHelper = {
     if (file_url) payload.file_url = file_url;
     const { data, error } = await supabase.from('pengajuan_surat').update(payload).eq('id', id).select();
     if (error) throw error; return data[0];
+  },
+
+  // --- PENGUMUMAN & AGENDA ---
+  getPengumuman: async () => {
+    const { data, error } = await supabase.from('pengumuman').select('*').order('created_at', { ascending: false });
+    if (error) throw error; return data;
+  },
+
+  addPengumuman: async (item, autoGenerateAI = false) => {
+    // 1. Pisahkan useAI dari data asli (Clean Object)
+    const { useAI, ...restItem } = item;
+    
+    // Pastikan tanggal kosong menjadi null agar Supabase tidak error
+    const dbPayload = {
+        ...restItem,
+        tanggal_kegiatan: restItem.tanggal_kegiatan || null
+    };
+
+    // 2. Generate Konten AI jika perlu
+    let finalContent = dbPayload.isi;
+    if (autoGenerateAI || !finalContent) {
+        finalContent = generateSmartContent(dbPayload.judul, dbPayload.kategori, dbPayload.tanggal_kegiatan);
+    }
+    
+    // Update isi di payload yang akan dikirim ke DB
+    dbPayload.isi = finalContent;
+
+    // 3. Simpan ke Database
+    const { data, error } = await supabase.from('pengumuman').insert([dbPayload]).select();
+    if (error) throw error;
+
+    // 4. Kirim WA jika diminta
+    if (autoGenerateAI) {
+        await sendWhatsAppMessage(finalContent);
+    }
+
+    return data[0];
+  },
+  
+  deletePengumuman: async (id) => {
+    const { error } = await supabase.from('pengumuman').delete().eq('id', id);
+    if (error) throw error; return true;
   }
 };

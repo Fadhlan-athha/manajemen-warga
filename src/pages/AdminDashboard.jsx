@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Home, Plus, Trash2, Edit, Menu, Search, ExternalLink, 
   Wallet, TrendingUp, TrendingDown, AlertTriangle, FileText, Check, X as XIcon, Map as MapIcon, MapPin,
-  ChevronDown, ChevronRight, User, Calendar, Briefcase, Heart, BookOpen, Mail, Eye, Filter, Locate // Tambah Locate icon
+  ChevronDown, ChevronRight, User, Calendar, Briefcase, Heart, BookOpen, Mail, Eye, Filter, Locate, Megaphone // Tambah Megaphone
 } from 'lucide-react';
 import { dbHelper } from '../utils/db';
 import { supabase } from '../utils/supabaseClient';
@@ -13,7 +13,7 @@ import DashboardCharts from '../components/DashboardCharts';
 import { generateSuratPDF } from '../utils/suratGenerator';
 
 // Leaflet Imports
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet'; // Tambah useMap & CircleMarker
+import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -27,7 +27,6 @@ L.Icon.Default.mergeOptions({
     shadowUrl: markerShadow,
 });
 
-// --- KOMPONEN BARU: TOMBOL LOKASI SAYA ---
 function LocationMarker() {
   const [position, setPosition] = useState(null);
   const map = useMap();
@@ -35,7 +34,7 @@ function LocationMarker() {
   const handleLocate = () => {
     map.locate().on("locationfound", function (e) {
       setPosition(e.latlng);
-      map.flyTo(e.latlng, 18); // Zoom in close
+      map.flyTo(e.latlng, 18); 
     }).on("locationerror", function (e) {
       alert("Gagal mengambil lokasi: " + e.message);
     });
@@ -43,16 +42,11 @@ function LocationMarker() {
 
   return (
     <>
-       {/* Tombol Floating di Peta */}
        <div className="leaflet-bottom leaflet-right" style={{marginBottom: '90px', marginRight: '10px', pointerEvents: 'auto', zIndex: 1000}}>
           <div className="bg-white border-2 border-gray-300 rounded shadow-sm cursor-pointer hover:bg-gray-100" onClick={handleLocate} title="Lokasi Saya">
-             <div className="p-2 text-gray-700">
-                <Locate size={20}/>
-             </div>
+             <div className="p-2 text-gray-700"><Locate size={20}/></div>
           </div>
        </div>
-       
-       {/* Marker Posisi Admin (Lingkaran Biru) */}
        {position && (
           <CircleMarker center={position} radius={8} pathOptions={{ color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }}>
             <Popup>📍 Lokasi Anda Saat Ini</Popup>
@@ -77,6 +71,7 @@ export default function AdminDashboard() {
   const [transaksiList, setTransaksiList] = useState([]);
   const [laporanList, setLaporanList] = useState([]);
   const [suratList, setSuratList] = useState([]);
+  const [infoList, setInfoList] = useState([]); // State Pengumuman
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -103,6 +98,11 @@ export default function AdminDashboard() {
     tipe: 'Pemasukan', kategori: 'Iuran Warga', nominal: '', keterangan: ''
   });
 
+  // State Form Pengumuman
+  const [infoForm, setInfoForm] = useState({
+    judul: '', isi: '', kategori: 'Info', tanggal_kegiatan: '', useAI: true
+  });
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -117,7 +117,6 @@ export default function AdminDashboard() {
     if (session) loadData();
   }, [session]);
 
-  // Helper Hitung Umur
   const calculateAge = (dateString) => {
     if (!dateString) return 0;
     const today = new Date();
@@ -141,6 +140,8 @@ export default function AdminDashboard() {
       setLaporanList(dataLaporan || []);
       const dataSurat = await dbHelper.getSurat();
       setSuratList(dataSurat || []);
+      const dataInfo = await dbHelper.getPengumuman();
+      setInfoList(dataInfo || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -193,6 +194,23 @@ export default function AdminDashboard() {
     setLoading(true);
     try { await dbHelper.addTransaksi(financeForm); alert("Transaksi berhasil!"); setFinanceForm({ tipe: 'Pemasukan', kategori: 'Iuran Warga', nominal: '', keterangan: '' }); setShowModal(false); loadData(); } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
+
+  const handleInfoSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try { 
+      // Parameter kedua 'infoForm.useAI' menentukan apakah pakai generator AI atau tidak
+      await dbHelper.addPengumuman(infoForm, infoForm.useAI); 
+      
+      alert(infoForm.useAI ? "Pengumuman dibuat & Broadcast WA terkirim!" : "Pengumuman berhasil disimpan!"); 
+      
+      setInfoForm({ judul: '', isi: '', kategori: 'Info', tanggal_kegiatan: '', useAI: true }); 
+      setShowModal(false); 
+      loadData(); 
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
+  };
+
+  const handleDeleteInfo = async (id) => { if(confirm('Hapus pengumuman ini?')) { try { await dbHelper.deletePengumuman(id); loadData(); } catch(err) { alert(err.message) } } };
 
   const handleDeleteTransaksi = async (id) => { if(confirm('Hapus?')) { try { await dbHelper.deleteTransaksi(id); loadData(); } catch(err) { alert(err.message) } } };
   const handleStatusLaporan = async (id, status) => { try { await dbHelper.updateStatusLaporan(id, status); loadData(); } catch(err) { alert(err.message); } };
@@ -409,7 +427,6 @@ export default function AdminDashboard() {
                     <MapContainer center={[-6.200000, 106.816666]} zoom={15} style={{ height: '100%', width: '100%' }}>
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
                         
-                        {/* KOMPONEN TOMBOL LOKASI */}
                         <LocationMarker />
 
                         {Object.keys(groupedFamilies).map(kkKey => {
@@ -417,7 +434,6 @@ export default function AdminDashboard() {
                             const head = family.head;
                             if (!head || !head.latitude || !head.longitude) return null;
 
-                            // LOGIKA FILTER
                             let isVisible = true;
                             const allMembers = [head, ...family.members];
 
@@ -499,6 +515,62 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* TAB PENGUMUMAN (BARU) */}
+          {activeTab === 'pengumuman' && (
+            <div className="animate-in fade-in duration-300">
+               <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Megaphone className="text-orange-500" /> Papan Informasi & Agenda</h2>
+                 <button onClick={() => { setCurrentId('info'); setShowModal(true); }} className="bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow hover:bg-teal-700 text-sm font-bold">
+                    <Plus size={16}/> Buat Pengumuman
+                 </button>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {infoList.length === 0 ? (
+                      <div className="col-span-3 text-center text-gray-400 py-10">Belum ada pengumuman.</div>
+                  ) : infoList.map(info => {
+                      // --- LOGIKA CEK KADALUARSA ---
+                      // 1. Ambil tanggal hari ini (Local Time Indonesia)
+                      const offset = new Date().getTimezoneOffset() * 60000;
+                      const todayStr = (new Date(Date.now() - offset)).toISOString().slice(0, 10);
+                      
+                      // 2. Cek apakah tanggal kegiatan lebih kecil dari hari ini
+                      const isExpired = info.tanggal_kegiatan && info.tanggal_kegiatan < todayStr;
+
+                      return (
+                        <div key={info.id} className={`rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow ${isExpired ? 'bg-gray-50 opacity-70' : 'bg-white'}`}>
+                            {/* Garis atas jadi abu-abu jika expired */}
+                            <div className={`h-2 w-full ${isExpired ? 'bg-gray-300' : info.kategori === 'Penting' ? 'bg-red-500' : info.kategori === 'Agenda' ? 'bg-teal-500' : 'bg-blue-500'}`}></div>
+                            
+                            <div className="p-5 flex-1">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider ${info.kategori === 'Penting' ? 'bg-red-100 text-red-700' : info.kategori === 'Agenda' ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {info.kategori}
+                                        </span>
+                                        {/* Tampilkan Badge Kadaluarsa */}
+                                        {isExpired && <span className="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider bg-gray-200 text-gray-500">KADALUARSA</span>}
+                                    </div>
+                                    <button onClick={() => handleDeleteInfo(info.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
+                                </div>
+                                
+                                <h3 className="font-bold text-lg text-gray-800 mb-2">{info.judul}</h3>
+                                <p className="text-gray-600 text-sm whitespace-pre-wrap">{info.isi}</p>
+                                
+                                {info.tanggal_kegiatan && (
+                                    <div className={`mt-4 pt-4 border-t border-gray-100 flex items-center gap-2 text-sm ${isExpired ? 'text-red-400 line-through' : 'text-gray-500'}`}>
+                                        <Calendar size={16}/>
+                                        {new Date(info.tanggal_kegiatan).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                      );
+                  })}
+               </div>
+            </div>
+          )}
+
           {activeTab === 'laporan' && (
             <div className="animate-in fade-in duration-300">
                 <div className="flex justify-between items-center mb-6">
@@ -557,16 +629,20 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* MODAL EDIT/ADD */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
            <div className="bg-white p-6 rounded-2xl w-full max-w-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-center mb-6 border-b pb-4">
-                <h3 className="text-xl font-bold text-gray-800">{currentId === 'finance' ? 'Catat Transaksi' : (editMode ? 'Edit Data Warga' : 'Tambah Warga')}</h3>
+                <h3 className="text-xl font-bold text-gray-800">
+                    {currentId === 'finance' ? 'Catat Transaksi' : currentId === 'info' ? 'Buat Pengumuman Baru' : (editMode ? 'Edit Data Warga' : 'Tambah Warga')}
+                </h3>
                 <button onClick={() => setShowModal(false)} className="text-3xl">&times;</button>
               </div>
-              <form onSubmit={currentId === 'finance' ? handleFinanceSubmit : handleSubmit}>
-                 {currentId === 'finance' ? (
+              
+              <form onSubmit={currentId === 'finance' ? handleFinanceSubmit : currentId === 'info' ? handleInfoSubmit : handleSubmit}>
+                 
+                 {/* FORM KEUANGAN */}
+                 {currentId === 'finance' && (
                     <div className="space-y-4">
                        <div className="flex gap-4"><label className="flex items-center gap-2 border p-3 rounded w-full has-[:checked]:bg-green-50"><input type="radio" name="tipe" value="Pemasukan" checked={financeForm.tipe === 'Pemasukan'} onChange={e => setFinanceForm({...financeForm, tipe: e.target.value})} /> Pemasukan</label><label className="flex items-center gap-2 border p-3 rounded w-full has-[:checked]:bg-red-50"><input type="radio" name="tipe" value="Pengeluaran" checked={financeForm.tipe === 'Pengeluaran'} onChange={e => setFinanceForm({...financeForm, tipe: e.target.value})} /> Pengeluaran</label></div>
                        <div className="grid grid-cols-2 gap-4">
@@ -575,8 +651,66 @@ export default function AdminDashboard() {
                        </div>
                        <div><label className="text-xs font-bold uppercase">Keterangan</label><textarea className="w-full border p-2 rounded mt-1" value={financeForm.keterangan} onChange={e => setFinanceForm({...financeForm, keterangan: e.target.value})}></textarea></div>
                     </div>
-                 ) : (
+                 )}
+
+                 {/* FORM PENGUMUMAN (UPDATED: AUTO AI) */}
+                 {currentId === 'info' && (
+                    <div className="space-y-4">
+                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-800 flex gap-2 items-start">
+                            <Megaphone size={18} className="mt-0.5 shrink-0"/>
+                            <div>
+                                <b>Fitur Auto-Broadcast:</b> Cukup isi Judul, Kategori, dan Tanggal. Isi pesan akan dibuat otomatis oleh sistem dan dikirim ke Grup WhatsApp Warga.
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold uppercase">Judul Pengumuman</label>
+                            <input className="w-full border p-2 rounded mt-1" placeholder="Contoh: Kerja Bakti Minggu Ini" value={infoForm.judul} onChange={e => setInfoForm({...infoForm, judul: e.target.value})} required/>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase">Kategori</label>
+                                <select className="w-full border p-2 rounded mt-1" value={infoForm.kategori} onChange={e => setInfoForm({...infoForm, kategori: e.target.value})}>
+                                    <option>Info</option>
+                                    <option>Agenda</option>
+                                    <option>Penting</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold uppercase">Tanggal Kegiatan (Jika Ada)</label>
+                                <input type="date" className="w-full border p-2 rounded mt-1" value={infoForm.tanggal_kegiatan} onChange={e => setInfoForm({...infoForm, tanggal_kegiatan: e.target.value})}/>
+                            </div>
+                        </div>
+
+                        {/* Checkbox AI Broadcast */}
+                        <div className="flex items-center gap-2 mt-2 p-3 bg-gray-50 rounded border border-gray-200">
+                            <input 
+                                type="checkbox" 
+                                id="aiBroadcast" 
+                                className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"
+                                checked={infoForm.useAI}
+                                onChange={e => setInfoForm({...infoForm, useAI: e.target.checked})}
+                            />
+                            <label htmlFor="aiBroadcast" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
+                                Buat isi otomatis (AI) & Kirim ke WhatsApp
+                            </label>
+                        </div>
+
+                        {/* Textarea Isi Manual (Hanya muncul jika TIDAK pakai AI) */}
+                        {!infoForm.useAI && (
+                            <div className="animate-in fade-in">
+                                <label className="text-xs font-bold uppercase">Isi Manual (Opsional)</label>
+                                <textarea rows="5" className="w-full border p-2 rounded mt-1" placeholder="Tulis detail lengkap di sini..." value={infoForm.isi} onChange={e => setInfoForm({...infoForm, isi: e.target.value})}></textarea>
+                            </div>
+                        )}
+                    </div>
+                 )}
+
+                 {/* FORM WARGA */}
+                 {currentId !== 'finance' && currentId !== 'info' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* Copy Form Warga yang sudah ada dari sebelumnya di sini */}
                         <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase">Data Rumah & KK</h4>
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -593,31 +727,25 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* BAGIAN 2: DATA PERSONAL LENGKAP (UPDATE ICON & LABEL) */}
                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Nama Lengkap</label><input className="w-full border p-2 rounded mt-1" value={formData.nama} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><FileText size={12}/> NIK</label><input className="w-full border p-2 rounded mt-1" value={formData.nik} onChange={e => setFormData({...formData, nik: e.target.value})} disabled={editMode} /></div>
-                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><MapPin size={12}/> Tempat Lahir</label><input className="w-full border p-2 rounded mt-1" value={formData.tempatLahir} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={12}/> Tanggal Lahir</label><input type="date" className="w-full border p-2 rounded mt-1" value={formData.tanggalLahir} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
-                            
                             <div className="grid grid-cols-2 gap-2">
                                 <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><BookOpen size={12}/> Agama</label><select className="w-full border p-2 rounded mt-1" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option>Islam</option><option>Kristen</option><option>Katolik</option><option>Hindu</option><option>Buddha</option><option>Konghucu</option></select></div>
                                 <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Heart size={12}/> Gol. Darah</label><select className="w-full border p-2 rounded mt-1" value={formData.golonganDarah} onChange={e => setFormData({...formData, golonganDarah: e.target.value})}><option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option></select></div>
                             </div>
-
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> Pekerjaan</label><input className="w-full border p-2 rounded mt-1" value={formData.pekerjaan} onChange={e => setFormData({...formData, pekerjaan: e.target.value})} /></div>
-                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Users size={12}/> Status Perkawinan</label><select className="w-full border p-2 rounded mt-1" value={formData.statusPerkawinan} onChange={e => setFormData({...formData, statusPerkawinan: e.target.value})}><option>Kawin</option><option>Belum Kawin</option><option>Cerai Hidup</option><option>Cerai Mati</option></select></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Peran Keluarga</label><select className="w-full border p-2 rounded mt-1" value={formData.peran} onChange={e => setFormData({...formData, peran: e.target.value})}><option>Kepala Keluarga</option><option>Anggota</option></select></div>
-                            
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Briefcase size={12}/> No HP</label><input className="w-full border p-2 rounded mt-1" value={formData.noHp} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Mail size={12}/> Email</label><input className="w-full border p-2 rounded mt-1" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><User size={12}/> Jenis Kelamin</label><select className="w-full border p-2 rounded mt-1" value={formData.jenisKelamin} onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}><option>Laki-laki</option><option>Perempuan</option></select></div>
                         </div>
                     </div>
                  )}
+
                  <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                    <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 bg-gray-100 rounded-lg">Batal</button>
                    <button type="submit" className="px-6 py-2.5 bg-teal-600 text-white rounded-lg shadow">Simpan</button>
@@ -639,7 +767,6 @@ export default function AdminDashboard() {
               </div>
               
               <div className="p-6 md:p-8 space-y-6">
-                  {/* Informasi Alamat */}
                   <div>
                       <h4 className="text-sm font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><Home size={16}/> Alamat Lengkap</h4>
                       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-800">
@@ -650,7 +777,6 @@ export default function AdminDashboard() {
                       </div>
                   </div>
 
-                  {/* Foto Fisik KK */}
                   <div>
                       <h4 className="text-sm font-bold text-gray-500 uppercase mb-3 flex items-center gap-2"><FileText size={16}/> Foto Fisik KK</h4>
                       <div className="bg-gray-100 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center min-h-[200px]">

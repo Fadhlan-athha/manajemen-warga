@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbHelper } from '../utils/db.js';
 import { 
   Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
-  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, AlertCircle
+  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, AlertCircle, Megaphone
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function PublicForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  // State untuk menyimpan pesan error validasi
   const [errors, setErrors] = useState({});
+  const [announcements, setAnnouncements] = useState([]); 
 
-  // State 1: Data Rumah / KK
   const [household, setHousehold] = useState({
     kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', status: 'Tetap', fotoFile: null
   });
 
-  // State 2: Daftar Anggota Keluarga
   const [members, setMembers] = useState([
     { 
       nama: '', nik: '', email: '', noHp: '', 
@@ -27,9 +25,34 @@ export default function PublicForm() {
     }
   ]);
 
+  // --- UPDATE: FILTER PENGUMUMAN OTOMATIS ---
+  useEffect(() => {
+    const fetchInfo = async () => {
+        try {
+            const data = await dbHelper.getPengumuman();
+            
+            // Ambil tanggal hari ini dalam format YYYY-MM-DD (Local Time)
+            const offset = new Date().getTimezoneOffset() * 60000;
+            const todayStr = (new Date(Date.now() - offset)).toISOString().slice(0, 10);
+
+            const activeData = (data || []).filter(item => {
+                // 1. Jika tidak ada tanggal (Info Umum/Kategori Info), selalu tampilkan
+                if (!item.tanggal_kegiatan) return true;
+                
+                // 2. Jika ada tanggal, bandingkan string tanggalnya
+                // Tampilkan jika Tanggal Kegiatan >= Hari Ini
+                return item.tanggal_kegiatan >= todayStr;
+            });
+
+            setAnnouncements(activeData);
+        } catch (err) { console.error("Gagal load info", err); }
+    };
+    fetchInfo();
+  }, []);
+  // ------------------------------------------
+
   const handleHouseholdChange = (e) => {
     setHousehold({ ...household, [e.target.name]: e.target.value });
-    // Hapus error saat user mulai mengetik
     if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: null });
   };
 
@@ -42,7 +65,6 @@ export default function PublicForm() {
     const updatedMembers = [...members];
     updatedMembers[index][field] = value;
     setMembers(updatedMembers);
-     // Hapus error spesifik member saat mengetik
     const errorKey = `member_${index}_${field}`;
     if (errors[errorKey]) setErrors({ ...errors, [errorKey]: null });
   };
@@ -62,41 +84,32 @@ export default function PublicForm() {
     }
   };
 
-  // --- FUNGSI VALIDASI ---
   const validateForm = () => {
       const newErrors = {};
-      
-      // 1. Validasi Data Rumah
       if (!household.kk) newErrors.kk = "No. KK wajib diisi";
       if (household.kk && household.kk.length !== 16) newErrors.kk = "No. KK harus 16 digit";
       if (!household.noRumah) newErrors.noRumah = "Nomor rumah wajib diisi";
       if (!household.alamat) newErrors.alamat = "Alamat lengkap wajib diisi";
       if (!household.fotoFile) newErrors.fotoFile = "Foto fisik KK wajib diupload";
 
-      // 2. Validasi Setiap Anggota Keluarga
       members.forEach((member, index) => {
           if (!member.nama) newErrors[`member_${index}_nama`] = "Nama lengkap wajib diisi";
           if (!member.nik) newErrors[`member_${index}_nik`] = "NIK wajib diisi";
           if (member.nik && member.nik.length !== 16) newErrors[`member_${index}_nik`] = "NIK harus 16 digit";
           if (!member.tempatLahir) newErrors[`member_${index}_tempatLahir`] = "Tempat lahir wajib diisi";
           if (!member.tanggalLahir) newErrors[`member_${index}_tanggalLahir`] = "Tanggal lahir wajib diisi";
-          if (!member.pekerjaan) newErrors[`member_${index}_pekerjaan`] = "Pekerjaan wajib diisi (isi '-' jika tidak ada)";
-          // Kontak opsional tapi disarankan diisi salah satu
+          if (!member.pekerjaan) newErrors[`member_${index}_pekerjaan`] = "Pekerjaan wajib diisi";
           if (!member.noHp && index === 0) newErrors[`member_${0}_noHp`] = "Kepala Keluarga wajib mengisi No HP";
       });
-
       return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Jalankan Validasi
     const formErrors = validateForm();
     if (Object.keys(formErrors).length > 0) {
         setErrors(formErrors);
-        alert("Mohon periksa kembali formulir Anda. Ada data yang belum diisi.");
-        // Scroll ke paling atas agar user melihat error
+        alert("Mohon periksa kembali formulir Anda.");
         window.scrollTo(0, 0);
         return;
     }
@@ -104,7 +117,6 @@ export default function PublicForm() {
     setLoading(true);
     try {
       let fotoUrl = null;
-      // Upload foto dulu
       if (household.fotoFile) {
         fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk);
       }
@@ -118,7 +130,6 @@ export default function PublicForm() {
     }
   };
 
-  // Komponen kecil untuk pesan error
   const ErrorMsg = ({ msg }) => msg ? <p className="text-red-500 text-xs mt-1 flex items-center gap-1 animate-pulse"><AlertCircle size={12}/> {msg}</p> : null;
 
   if (success) {
@@ -138,7 +149,6 @@ export default function PublicForm() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* HEADER */}
       <div 
         className="relative bg-teal-900 text-white py-18 px-6 text-center bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('https://pbs.twimg.com/profile_images/378800000199005433/fb1918a600afc788d2a76ca2f9d7005c.jpeg')" }}
@@ -158,16 +168,39 @@ export default function PublicForm() {
          </div>
       </div>
 
-      <div className="max-w-5xl mx-auto -mt-10 px-4 pb-20 relative z-20">
+      <div className="max-w-5xl mx-auto px-4 pb-20 relative z-20 -mt-8">
+        
+        {/* SECTION PENGUMUMAN OTOMATIS */}
+        {announcements.length > 0 && (
+            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {announcements.slice(0, 3).map(info => (
+                    <div key={info.id} className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col transform hover:-translate-y-1 transition-all">
+                        <div className={`h-1.5 w-full ${info.kategori === 'Penting' ? 'bg-red-500' : info.kategori === 'Agenda' ? 'bg-teal-500' : 'bg-blue-500'}`}></div>
+                        <div className="p-4 flex-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-2 inline-block ${info.kategori === 'Penting' ? 'bg-red-50 text-red-600' : info.kategori === 'Agenda' ? 'bg-teal-50 text-teal-600' : 'bg-blue-50 text-blue-600'}`}>
+                                📢 {info.kategori}
+                            </span>
+                            <h3 className="font-bold text-gray-800 text-sm mb-1">{info.judul}</h3>
+                            <p className="text-gray-600 text-xs line-clamp-3">{info.isi}</p>
+                            {info.tanggal_kegiatan && (
+                                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-1 text-xs text-gray-400 font-medium">
+                                    <Calendar size={12}/> {new Date(info.tanggal_kegiatan).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
             <div className="bg-gray-50 p-4 border-b border-gray-100 text-center">
                <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider">Formulir Sensus Warga</h3>
             </div>
-            
-            {/* Tambahkan 'noValidate' agar browser tidak menggunakan validasi HTML default */}
+
             <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8" noValidate>
             
-            {/* --- BAGIAN 1: DATA RUMAH (KK) --- */}
+            {/* DATA RUMAH */}
             <div className="bg-teal-50/50 p-6 rounded-xl border border-teal-100 relative">
                 {Object.keys(errors).some(k => !k.startsWith('member')) && <div className="absolute top-4 right-4 text-red-500 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> Data Rumah Belum Lengkap</div>}
                 <h3 className="text-xl font-bold text-teal-800 mb-4 flex items-center gap-2"><UploadCloud size={20}/> Data Kartu Keluarga & Rumah</h3>
@@ -191,11 +224,11 @@ export default function PublicForm() {
                         </div>
                         <div>
                             <label className="label">RW</label>
-                            <input className="input-field" name="rw" value={household.rw} onChange={handleHouseholdChange} placeholder="01"/>
+                            <input className="input-field" name="rw" value={household.rw} onChange={handleHouseholdChange} placeholder="Contoh: 03" />
                         </div>
                     </div>
                     <div className="md:col-span-3">
-                        <label className="label">Alamat Rumah *</label>
+                        <label className="label">Alamat Lengkap *</label>
                         <input className={`input-field ${errors.alamat ? 'border-red-500 bg-red-50' : ''}`} name="alamat" value={household.alamat} onChange={handleHouseholdChange} placeholder="Nama Jalan, Gang, Blok..." />
                         <ErrorMsg msg={errors.alamat} />
                     </div>
@@ -207,7 +240,7 @@ export default function PublicForm() {
                 </div>
             </div>
 
-            {/* --- BAGIAN 2: ANGGOTA KELUARGA --- */}
+            {/* DATA ANGGOTA KELUARGA */}
             <div>
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><User size={20}/> Anggota Keluarga</h3>
                 <div className="space-y-6">
@@ -221,7 +254,6 @@ export default function PublicForm() {
                         {Object.keys(errors).some(k => k.startsWith(`member_${index}`)) && <div className="mb-4 text-red-500 text-xs font-bold flex items-center gap-1 ml-4"><AlertCircle size={14}/> Lengkapi data anggota ini</div>}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pl-4">
-                            {/* Identitas Utama */}
                             <div className="lg:col-span-2">
                                 <label className="label flex items-center gap-1"><User size={12}/> Nama Lengkap *</label>
                                 <input className={`input-field font-bold ${errors[`member_${index}_nama`] ? 'border-red-500 bg-red-50' : ''}`} value={member.nama} onChange={(e) => handleMemberChange(index, 'nama', e.target.value)} placeholder="Sesuai KTP" />
@@ -232,8 +264,6 @@ export default function PublicForm() {
                                 <input type="number" className={`input-field font-mono ${errors[`member_${index}_nik`] ? 'border-red-500 bg-red-50' : ''}`} value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} placeholder="16 Digit Angka" />
                                 <ErrorMsg msg={errors[`member_${index}_nik`]} />
                             </div>
-
-                            {/* TTL & Agama */}
                             <div>
                                 <label className="label flex items-center gap-1"><MapPin size={12}/> Tempat Lahir *</label>
                                 <input className={`input-field ${errors[`member_${index}_tempatLahir`] ? 'border-red-500 bg-red-50' : ''}`} value={member.tempatLahir} onChange={(e) => handleMemberChange(index, 'tempatLahir', e.target.value)} placeholder="Kota Kelahiran" />
@@ -256,8 +286,6 @@ export default function PublicForm() {
                                     <option>-</option><option>A</option><option>B</option><option>AB</option><option>O</option>
                                 </select>
                             </div>
-
-                            {/* Status & Pekerjaan */}
                              <div>
                                 <label className="label flex items-center gap-1"><Users size={12}/> Status Perkawinan</label>
                                 <select className="input-field" value={member.statusPerkawinan} onChange={(e) => handleMemberChange(index, 'statusPerkawinan', e.target.value)}>
@@ -275,8 +303,6 @@ export default function PublicForm() {
                                 <option>Kepala Keluarga</option><option>Istri</option><option>Anak</option><option>Famili Lain</option>
                                 </select>
                             </div>
-
-                             {/* Kontak */}
                             <div>
                                 <label className="label flex items-center gap-1"><Phone size={12}/> No. HP (WA) {index === 0 && '*'}</label>
                                 <input className={`input-field ${errors[`member_${index}_noHp`] ? 'border-red-500 bg-red-50' : ''}`} value={member.noHp} onChange={(e) => handleMemberChange(index, 'noHp', e.target.value)} placeholder="08..." />

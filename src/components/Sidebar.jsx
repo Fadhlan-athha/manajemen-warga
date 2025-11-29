@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Users, Save, Database, X, LogOut, Wallet, AlertTriangle, FileText, Map } from 'lucide-react';
+import { Home, Users, Save, Database, X, LogOut, Wallet, AlertTriangle, FileText, Map, Megaphone } from 'lucide-react'; // Tambah Megaphone
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
   return (
@@ -32,53 +32,36 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           <NavButton 
-            id="dashboard" 
-            label="Dashboard" 
-            icon={<Home size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('dashboard'); setIsOpen(false); }} 
+            id="dashboard" label="Dashboard" icon={<Home size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('dashboard'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="warga" 
-            label="Data Warga" 
-            icon={<Users size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
+            id="warga" label="Data Warga" icon={<Users size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="peta" 
-            label="Peta Sebaran" 
-            icon={<Map size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('peta'); setIsOpen(false); }} 
+            id="peta" label="Peta Sebaran" icon={<Map size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('peta'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="keuangan" 
-            label="Keuangan & Kas" 
-            icon={<Wallet size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('keuangan'); setIsOpen(false); }} 
+            id="keuangan" label="Keuangan & Kas" icon={<Wallet size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('keuangan'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="laporan" 
-            label="Laporan Darurat" 
-            icon={<AlertTriangle size={20} className="text-red-400"/>} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('laporan'); setIsOpen(false); }} 
+            id="pengumuman" label="Papan Informasi" icon={<Megaphone size={20} />}  // <--- MENU BARU
+            activeTab={activeTab} onClick={() => { setActiveTab('pengumuman'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="surat" 
-            label="Pengajuan Surat" 
-            icon={<FileText size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('surat'); setIsOpen(false); }} 
+            id="laporan" label="Laporan Darurat" icon={<AlertTriangle size={20} className="text-red-400"/>} 
+            activeTab={activeTab} onClick={() => { setActiveTab('laporan'); setIsOpen(false); }} 
           />
           <NavButton 
-            id="settings" 
-            label="Pengaturan" 
-            icon={<Save size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('settings'); setIsOpen(false); }} 
+            id="surat" label="Pengajuan Surat" icon={<FileText size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('surat'); setIsOpen(false); }} 
+          />
+          <NavButton 
+            id="settings" label="Pengaturan" icon={<Save size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('settings'); setIsOpen(false); }} 
           />
         </nav>
 
