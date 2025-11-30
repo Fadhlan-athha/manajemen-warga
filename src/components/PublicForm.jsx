@@ -20,7 +20,7 @@ export default function PublicForm() {
   });
 
   const [household, setHousehold] = useState({
-    kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', status: 'Tetap', fotoFile: null
+    kk: '', noRumah: '', rt: '01', rw: '024', alamat: '', status: 'Tetap', fotoFile: null
   });
 
   const [members, setMembers] = useState([
