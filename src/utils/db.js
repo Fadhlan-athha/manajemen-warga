@@ -102,7 +102,7 @@ const sendWhatsAppMessage = async (message) => {
 // ==========================================
 
 export const dbHelper = {
-  // --- A. MANAJEMEN WARGA ---
+  // --- MANAJEMEN WARGA ---
   getAll: async () => {
     const { data, error } = await supabase.from('warga').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -158,7 +158,19 @@ export const dbHelper = {
     if (error) throw error; return true;
   },
 
-  // --- B. KEUANGAN & KAS ---
+  // --- ADMIN ROLE ---
+  getAdminRole: async (userId) => {
+    const { data, error } = await supabase
+      .from('admin_users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error) return null; // Jika tidak ada di tabel admin, return null
+    return data.role;
+  },
+
+  // --- KEUANGAN & KAS ---
   getKeuangan: async () => {
     const { data, error } = await supabase.from('transaksi_keuangan').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
@@ -174,7 +186,7 @@ export const dbHelper = {
     if (error) throw error; return true;
   },
 
-  // --- C. LAPORAN DARURAT ---
+  // --- LAPORAN DARURAT ---
   getLaporan: async () => {
     const { data, error } = await supabase.from('laporan_darurat').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
@@ -208,7 +220,7 @@ export const dbHelper = {
     if (error) throw error; return true;
   },
 
-  // --- D. SURAT MENYURAT ---
+  // --- SURAT MENYURAT ---
   getSurat: async () => {
     const { data, error } = await supabase.from('pengajuan_surat').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
@@ -241,7 +253,7 @@ export const dbHelper = {
     if (error) throw error; return data[0];
   },
 
-  // --- E. PENGUMUMAN ---
+  // --- PENGUMUMAN ---
   getPengumuman: async () => {
     const { data, error } = await supabase.from('pengumuman').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
@@ -269,7 +281,7 @@ export const dbHelper = {
     if (error) throw error; return true;
   },
 
-  // --- F. IURAN WARGA ---
+  // --- IURAN WARGA ---
   getIuran: async () => {
     const { data, error } = await supabase.from('iuran_warga').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
@@ -327,7 +339,7 @@ export const dbHelper = {
     await sendWhatsAppMessage(message);
   },
 
-  // --- G. BANK SAMPAH (FITUR BARU) ---
+  // --- BANK SAMPAH (FITUR BARU) ---
   // Pastikan Anda sudah membuat tabel 'bank_sampah' di Supabase
   addSetoranSampah: async (data) => {
     // data: { nik, nama, jenis_sampah, berat_kg, harga_per_kg, total_rp }

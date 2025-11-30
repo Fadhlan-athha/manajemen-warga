@@ -1,10 +1,73 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Home, Users, Save, Database, X, LogOut, Wallet, 
   AlertTriangle, FileText, Map, Megaphone, BadgeCheck, Recycle 
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
+  const [role, setRole] = useState('RW'); 
+
+  useEffect(() => {
+    const savedRole = localStorage.getItem('userRole');
+    if (savedRole) setRole(savedRole);
+  }, []);
+
+  // --- LOGIKA HAK AKSES PINTAR ---
+  const hasAccess = (allowedRoles) => {
+    const currentRole = (role || '').toLowerCase();
+
+    // 1. GOD MODE: Jika Super Admin atau Developer, beri akses ke SEMUA menu
+    if (currentRole === 'super admin' || currentRole === 'developer') {
+      return true;
+    }
+
+    // 2. Normal Check: Cek apakah role user ada di daftar yang diizinkan
+    return allowedRoles.some(r => r.toLowerCase() === currentRole);
+  };
+
+  const menuItems = [
+    { 
+      id: 'dashboard', label: 'Dashboard', icon: <Home size={20} />, 
+      allowed: ['RW', 'RT', 'Sekretaris', 'Bendahara'] 
+    },
+    { 
+      id: 'warga', label: 'Data Warga', icon: <Users size={20} />, 
+      allowed: ['RW', 'RT', 'Sekretaris'] 
+    },
+    { 
+      id: 'verifikasi', label: 'Verifikasi Iuran', icon: <BadgeCheck size={20} />, 
+      allowed: ['RW', 'RT', 'Bendahara'] 
+    },
+    { 
+      id: 'sampah', label: 'Bank Sampah', icon: <Recycle size={20} />, 
+      allowed: ['RW', 'RT', 'Bendahara'] 
+    },
+    { 
+      id: 'peta', label: 'Peta Sebaran', icon: <Map size={20} />, 
+      allowed: ['RW', 'RT'] 
+    },
+    { 
+      id: 'keuangan', label: 'Keuangan & Kas', icon: <Wallet size={20} />, 
+      allowed: ['RW', 'RT', 'Bendahara'] 
+    },
+    { 
+      id: 'pengumuman', label: 'Papan Informasi', icon: <Megaphone size={20} />, 
+      allowed: ['RW', 'Sekretaris', 'RT'] 
+    },
+    { 
+      id: 'laporan', label: 'Laporan Darurat', icon: <AlertTriangle size={20} className="text-red-400"/>, 
+      allowed: ['RW', 'RT',] 
+    },
+    { 
+      id: 'surat', label: 'Pengajuan Surat', icon: <FileText size={20} />, 
+      allowed: ['RW', 'RT', 'Sekretaris'] 
+    },
+    { 
+      id: 'settings', label: 'Pengaturan', icon: <Save size={20} />, 
+      allowed: ['RW'] 
+    },
+  ];
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -24,9 +87,13 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
           <div>
             <h1 className="text-xl font-bold flex items-center gap-3 text-teal-400">
               <Database className="w-6 h-6" />
-              Sistem RW
+              Sistem RW 024
             </h1>
-            <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">ADMINISTRATOR</p>
+            <p className={`text-[10px] mt-1 font-bold tracking-wide uppercase inline-block px-2 py-0.5 rounded
+              ${role.toLowerCase() === 'super admin' ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400'}
+            `}>
+              {role}
+            </p>
           </div>
           <button onClick={() => setIsOpen(false)} className="lg:hidden text-slate-400 hover:text-white transition-colors">
             <X size={24} />
@@ -34,54 +101,29 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-          <NavButton 
-            id="dashboard" label="Dashboard" icon={<Home size={20} />}
-            activeTab={activeTab} onClick={() => { setActiveTab('dashboard'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="warga" label="Data Warga" icon={<Users size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="verifikasi" label="Verifikasi Iuran" icon={<BadgeCheck size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('verifikasi'); setIsOpen(false); }} 
-          />
-          
-          {/* MENU BANK SAMPAH */}
-          <NavButton 
-            id="sampah" label="Bank Sampah" icon={<Recycle size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('sampah'); setIsOpen(false); }} 
-          />
-
-          <NavButton 
-            id="peta" label="Peta Sebaran" icon={<Map size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('peta'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="keuangan" label="Keuangan & Kas" icon={<Wallet size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('keuangan'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="pengumuman" label="Papan Informasi" icon={<Megaphone size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('pengumuman'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="laporan" label="Laporan Darurat" icon={<AlertTriangle size={20} className="text-red-400"/>} 
-            activeTab={activeTab} onClick={() => { setActiveTab('laporan'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="surat" label="Pengajuan Surat" icon={<FileText size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('surat'); setIsOpen(false); }} 
-          />
-          <NavButton 
-            id="settings" label="Pengaturan" icon={<Save size={20} />} 
-            activeTab={activeTab} onClick={() => { setActiveTab('settings'); setIsOpen(false); }} 
-          />
+          {menuItems.map((item) => {
+            if (hasAccess(item.allowed)) {
+              return (
+                <NavButton 
+                  key={item.id}
+                  id={item.id} 
+                  label={item.label} 
+                  icon={item.icon} 
+                  activeTab={activeTab} 
+                  onClick={() => { setActiveTab(item.id); setIsOpen(false); }} 
+                />
+              );
+            }
+            return null;
+          })}
         </nav>
 
         <div className="p-4 border-t border-slate-800 bg-slate-950">
           <button 
-            onClick={onLogout}
+            onClick={() => {
+              localStorage.removeItem('userRole');
+              onLogout();
+            }}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 group"
           >
             <LogOut size={20} className="group-hover:-translate-x-1 transition-transform"/>
@@ -90,7 +132,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
         </div>
         
         <div className="p-3 text-[10px] text-center text-slate-600 bg-slate-950">
-          v2.0 (Cloud Connected)
+          v2.2 (God Mode Active)
         </div>
       </aside>
     </>
