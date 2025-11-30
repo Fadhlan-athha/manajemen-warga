@@ -39,42 +39,23 @@ const fromDbPayload = (data) => ({
   tempatLahir: data.tempat_lahir,
   tanggalLahir: data.tanggal_lahir,
   statusPerkawinan: data.status_perkawinan,
-  golonganDarah: data.golongan_darah
+  golongan_darah: data.golongan_darah
 });
 
-// --- SMART CONTENT GENERATOR (AI SEDERHANA) ---
+// --- SMART CONTENT GENERATOR ---
 const generateSmartContent = (judul, kategori, tanggal) => {
   const tglStr = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) : 'Waktu akan diinformasikan menyusul';
   
   if (kategori === 'Penting') {
-    return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\n` +
-           `Kepada seluruh warga RT/RW setempat, diinformasikan hal berikut:\n\n` +
-           `*${judul.toUpperCase()}*\n\n` +
-           `Mohon perhatian khusus terkait hal ini demi keamanan dan kenyamanan lingkungan kita bersama.\n\n` +
-           `📅 Berlaku/Terjadi: ${tglStr}\n\n` +
-           `Terima kasih atas kerja samanya.\n` +
-           `_~ Pengurus RT/RW_`;
-  } 
-  else if (kategori === 'Agenda') {
-    return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\n` +
-           `Halo Warga! Kami mengundang Bapak/Ibu/Sdr untuk hadir dalam kegiatan:\n\n` +
-           `✨ *${judul}* ✨\n\n` +
-           `Acara ini akan dilaksanakan pada:\n` +
-           `📅 Tanggal: ${tglStr}\n` +
-           `📍 Tempat: Lingkungan RT/RW\n\n` +
-           `Kehadiran warga sangat kami harapkan untuk mempererat silaturahmi.\n` +
-           `_~ Panitia Kegiatan_`;
-  } 
-  else { 
-    return `📢 *INFORMASI WARGA* 📢\n\n` +
-           `Sekilas info untuk diketahui bersama:\n\n` +
-           `*${judul}*\n\n` +
-           `Semoga informasi ini bermanfaat bagi kita semua. Tetap jaga kesehatan dan kebersihan lingkungan.\n\n` +
-           `_~ Admin Sistem RW_`;
+    return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\nKepada seluruh warga, diinformasikan:\n\n*${judul.toUpperCase()}*\n\n📅 Berlaku: ${tglStr}\n\nTerima kasih.\n_~ Pengurus RT/RW_`;
+  } else if (kategori === 'Agenda') {
+    return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\nKami mengundang warga pada:\n\n✨ *${judul}* ✨\n\n📅 Tanggal: ${tglStr}\n📍 Tempat: Lingkungan RT/RW\n\n_~ Panitia Kegiatan_`;
+  } else { 
+    return `📢 *INFORMASI WARGA* 📢\n\nSekilas info:\n\n*${judul}*\n\n_~ Admin Sistem RW_`;
   }
 };
 
-// --- FUNGSI KIRIM WA (GENERIC) ---
+// --- FUNGSI KIRIM WA ---
 const sendWhatsAppMessage = async (message) => {
   const token = import.meta.env.VITE_WA_API_TOKEN;
   const targetGroup = import.meta.env.VITE_WA_TARGET_GROUP;
@@ -103,6 +84,12 @@ export const dbHelper = {
     const { data, error } = await supabase.from('warga').select('*').eq('nik', nik).single();
     if (error && error.code !== 'PGRST116') throw error; 
     return data ? fromDbPayload(data) : null;
+  },
+  // FUNGSI BARU: Cek NIK (Ringan, cuma ambil nama)
+  checkNIK: async (nik) => {
+    const { data, error } = await supabase.from('warga').select('nama').eq('nik', nik).maybeSingle();
+    if (error) return null;
+    return data; // Mengembalikan { nama: '...' } jika ada, atau null jika tidak
   },
   uploadKK: async (file, noKK) => {
     if (!file) return null;
@@ -160,7 +147,6 @@ export const dbHelper = {
     const { data, error } = await supabase.from('laporan_darurat').insert([laporan]).select();
     if (error) throw error; 
     
-    // Format Pesan Darurat
     const waktu = new Date().toLocaleString('id-ID');
     const msg = `🔴 *PERINGATAN DINI - SISTEM RW* 🔴\n\n` +
       `Telah diterima laporan darurat baru!\n\n` +
@@ -169,7 +155,6 @@ export const dbHelper = {
       `👤 *PELAPOR:* ${laporan.pelapor_nama || 'Anonim'}\n` +
       `🕒 *WAKTU:* ${waktu}\n\n` +
       `Mohon petugas keamanan segera merapat!`;
-      
     sendWhatsAppMessage(msg); 
     return data[0];
   },
@@ -211,44 +196,39 @@ export const dbHelper = {
     if (error) throw error; return data[0];
   },
 
-  // --- PENGUMUMAN & AGENDA ---
+  // --- TAMBAHKAN FUNGSI BARU INI ---
+  checkDuplicate: async (column, value) => {
+    // Mengecek apakah nilai pada kolom tertentu (nik atau kk) sudah ada
+    // Menggunakan count: 'exact' dan head: true agar lebih ringan/cepat
+    const { count, error } = await supabase
+      .from('warga')
+      .select('*', { count: 'exact', head: true })
+      .eq(column, value);
+    
+    if (error) throw error;
+    return count > 0; // Mengembalikan true jika duplikat ditemukan
+  },
+
+  // --- PENGUMUMAN ---
   getPengumuman: async () => {
     const { data, error } = await supabase.from('pengumuman').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
-  
-  // FIX: Menangani useAI agar tidak dikirim ke DB
   addPengumuman: async (item, autoGenerateAI = false) => {
-    // 1. Pisahkan useAI dari data asli (Clean Object)
     const { useAI, ...restItem } = item;
-    
-    // Pastikan tanggal kosong menjadi null agar Supabase tidak error
-    const dbPayload = {
-        ...restItem,
-        tanggal_kegiatan: restItem.tanggal_kegiatan || null
-    };
+    const dbPayload = { ...restItem, tanggal_kegiatan: restItem.tanggal_kegiatan || null };
 
-    // 2. Generate Konten AI jika perlu
     let finalContent = dbPayload.isi;
     if (autoGenerateAI || !finalContent) {
         finalContent = generateSmartContent(dbPayload.judul, dbPayload.kategori, dbPayload.tanggal_kegiatan);
     }
-    
-    // Update isi di payload yang akan dikirim ke DB
     dbPayload.isi = finalContent;
 
-    // 3. Simpan ke Database
     const { data, error } = await supabase.from('pengumuman').insert([dbPayload]).select();
     if (error) throw error;
-
-    // 4. Kirim WA jika diminta
-    if (autoGenerateAI) {
-        await sendWhatsAppMessage(finalContent);
-    }
-
+    if (autoGenerateAI) await sendWhatsAppMessage(finalContent);
     return data[0];
   },
-  
   deletePengumuman: async (id) => {
     const { error } = await supabase.from('pengumuman').delete().eq('id', id);
     if (error) throw error; return true;
@@ -284,7 +264,6 @@ export const dbHelper = {
     };
     const { error: errKas } = await supabase.from('transaksi_keuangan').insert([transaksiPayload]);
     if (errKas) throw errKas;
-
     return true;
   },
   broadcastTagihan: async (hariKe) => {
@@ -302,8 +281,7 @@ export const dbHelper = {
       `💰 Nominal: *Rp 200.000*\n` +
       `🏦 Transfer ke: *${bankInfo}*\n\n` +
       `Mohon segera transfer dan upload bukti pembayaran melalui aplikasi warga.\n` +
-      `Terima kasih bagi yang sudah membayar. Abaikan pesan ini jika sudah lunas.\n` +
-      `_~ Bendahara RW_`;
+      `Terima kasih bagi yang sudah membayar.\n_~ Bendahara RW_`;
 
     await sendWhatsAppMessage(message);
   }

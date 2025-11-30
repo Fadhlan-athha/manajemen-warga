@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { dbHelper } from '../utils/db.js';
 import { 
   Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
-  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, AlertCircle, Megaphone
+  Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, 
+  AlertCircle, Megaphone, XCircle 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -11,6 +12,12 @@ export default function PublicForm() {
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState({});
   const [announcements, setAnnouncements] = useState([]); 
+
+  // --- STATE BARU: STATUS DUPLIKAT ---
+  const [duplicateStatus, setDuplicateStatus] = useState({
+    kk: false,
+    members: {} // format: { 0: false, 1: true }
+  });
 
   const [household, setHousehold] = useState({
     kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', status: 'Tetap', fotoFile: null
@@ -25,22 +32,38 @@ export default function PublicForm() {
     }
   ]);
 
-  // --- UPDATE: FILTER PENGUMUMAN OTOMATIS ---
+  // --- FUNGSI BARU: CEK KETERSEDIAAN DATA ---
+  const checkAvailability = async (type, value, index = null) => {
+    if (!value || value.length < 16) return; 
+
+    try {
+        let isDuplicate = false;
+        
+        if (type === 'kk') {
+            isDuplicate = await dbHelper.checkDuplicate('kk', value);
+            setDuplicateStatus(prev => ({ ...prev, kk: isDuplicate }));
+        } 
+        else if (type === 'nik') {
+            isDuplicate = await dbHelper.checkDuplicate('nik', value);
+            setDuplicateStatus(prev => ({
+                ...prev,
+                members: { ...prev.members, [index]: isDuplicate }
+            }));
+        }
+    } catch (err) {
+        console.error("Gagal cek duplikasi:", err);
+    }
+  };
+
   useEffect(() => {
     const fetchInfo = async () => {
         try {
             const data = await dbHelper.getPengumuman();
-            
-            // Ambil tanggal hari ini dalam format YYYY-MM-DD (Local Time)
             const offset = new Date().getTimezoneOffset() * 60000;
             const todayStr = (new Date(Date.now() - offset)).toISOString().slice(0, 10);
 
             const activeData = (data || []).filter(item => {
-                // 1. Jika tidak ada tanggal (Info Umum/Kategori Info), selalu tampilkan
                 if (!item.tanggal_kegiatan) return true;
-                
-                // 2. Jika ada tanggal, bandingkan string tanggalnya
-                // Tampilkan jika Tanggal Kegiatan >= Hari Ini
                 return item.tanggal_kegiatan >= todayStr;
             });
 
@@ -49,7 +72,6 @@ export default function PublicForm() {
     };
     fetchInfo();
   }, []);
-  // ------------------------------------------
 
   const handleHouseholdChange = (e) => {
     setHousehold({ ...household, [e.target.name]: e.target.value });
@@ -104,8 +126,21 @@ export default function PublicForm() {
       return newErrors;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // --- HANDLER SUBMIT YANG DIPERBARUI ---
+  const handleSubmit = async (e, isUpdateMode = false) => {
+    if (e) e.preventDefault();
+
+    // 1. CEK DUPLIKASI (Hanya jika BUKAN mode update)
+    if (!isUpdateMode) {
+        const isKKDuplicate = duplicateStatus.kk;
+        const isAnyNIKDuplicate = Object.values(duplicateStatus.members).some(val => val === true);
+
+        if (isKKDuplicate || isAnyNIKDuplicate) {
+            alert("Data duplikat terdeteksi! Gunakan tombol Update jika ingin menimpa data lama.");
+            return;
+        }
+    }
+
     const formErrors = validateForm();
     if (Object.keys(formErrors).length > 0) {
         setErrors(formErrors);
@@ -120,6 +155,8 @@ export default function PublicForm() {
       if (household.fotoFile) {
         fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk);
       }
+      // Jika mode update dan foto tidak diganti, fotoUrl akan null (logic ini bisa disesuaikan di backend jika perlu retain foto lama)
+      
       const householdDataFinal = { ...household, fotoUrl };
       await dbHelper.addFamily(members, householdDataFinal);
       setSuccess(true);
@@ -198,7 +235,7 @@ export default function PublicForm() {
                <h3 className="font-bold text-gray-500 uppercase text-xs tracking-wider">Formulir Sensus Warga</h3>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8" noValidate>
+            <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 md:p-8 space-y-8" noValidate>
             
             {/* DATA RUMAH */}
             <div className="bg-teal-50/50 p-6 rounded-xl border border-teal-100 relative">
@@ -207,7 +244,22 @@ export default function PublicForm() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                     <div className="md:col-span-2">
                         <label className="label">No. Kartu Keluarga (KK) *</label>
-                        <input className={`input-field ${errors.kk ? 'border-red-500 bg-red-50' : ''}`} name="kk" value={household.kk} onChange={handleHouseholdChange} placeholder="16 Digit No. KK" type="number" />
+                        <div className="relative">
+                            <input 
+                                className={`input-field ${errors.kk || duplicateStatus.kk ? 'border-red-500 bg-red-50' : ''}`} 
+                                name="kk" 
+                                value={household.kk} 
+                                onChange={handleHouseholdChange} 
+                                onBlur={(e) => checkAvailability('kk', e.target.value)}
+                                placeholder="16 Digit No. KK" 
+                                type="number" 
+                            />
+                        </div>
+                        {duplicateStatus.kk && (
+                            <p className="text-red-600 text-xs mt-1 font-bold animate-pulse flex items-center gap-1">
+                                <XCircle size={12}/> Nomor KK ini sudah terdaftar!
+                            </p>
+                        )}
                         <ErrorMsg msg={errors.kk} />
                     </div>
                     <div>
@@ -261,7 +313,21 @@ export default function PublicForm() {
                             </div>
                             <div className="lg:col-span-2">
                                 <label className="label flex items-center gap-1"><FileText size={12}/> NIK *</label>
-                                <input type="number" className={`input-field font-mono ${errors[`member_${index}_nik`] ? 'border-red-500 bg-red-50' : ''}`} value={member.nik} onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} placeholder="16 Digit Angka" />
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        className={`input-field font-mono ${errors[`member_${index}_nik`] || duplicateStatus.members[index] ? 'border-red-500 bg-red-50' : ''}`} 
+                                        value={member.nik} 
+                                        onChange={(e) => handleMemberChange(index, 'nik', e.target.value)} 
+                                        onBlur={(e) => checkAvailability('nik', e.target.value, index)}
+                                        placeholder="16 Digit Angka" 
+                                    />
+                                </div>
+                                {duplicateStatus.members[index] && (
+                                    <p className="text-red-600 text-xs mt-1 font-bold animate-pulse flex items-center gap-1">
+                                        <XCircle size={12}/> NIK ini sudah terdaftar!
+                                    </p>
+                                )}
                                 <ErrorMsg msg={errors[`member_${index}_nik`]} />
                             </div>
                             <div>
@@ -328,10 +394,46 @@ export default function PublicForm() {
             </div>
 
             <div className="pt-6 border-t border-gray-100">
-                <button type="submit" disabled={loading} className="w-full bg-teal-800 text-white font-bold py-4 rounded-xl hover:bg-teal-900 transition-all shadow-lg shadow-teal-900/20 flex justify-center items-center gap-2 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                    {loading ? 'Sedang Memvalidasi & Menyimpan...' : <><Send size={20} /> Kirim Data Sensus</>}
-                </button>
-                {Object.keys(errors).length > 0 && <p className="text-red-500 text-center mt-4 font-bold flex items-center justify-center gap-2"><AlertCircle/> Terdapat data yang belum diisi di atas.</p>}
+                {/* LOGIKA TOMBOL DINAMIS: CEK DUPLIKAT */}
+                {Object.values(duplicateStatus.members).some(v => v) || duplicateStatus.kk ? (
+                    // KONDISI JIKA ADA DUPLIKAT
+                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-center animate-in slide-in-from-bottom-2">
+                        <div className="flex items-center justify-center gap-2 text-yellow-800 font-bold mb-2">
+                            <AlertCircle size={24} />
+                            <span>Data Sudah Terdaftar!</span>
+                        </div>
+                        <p className="text-sm text-yellow-700 mb-4">
+                            NIK atau No. KK yang Anda masukkan sudah ada di sistem. <br/>
+                            Apakah Anda ingin memperbarui (menimpa) data lama dengan data baru ini?
+                        </p>
+                        
+                        <div className="flex gap-3 justify-center">
+                            <button 
+                                type="button" 
+                                onClick={(e) => handleSubmit(e, true)} // True = Force Update
+                                disabled={loading} 
+                                className="w-full md:w-auto px-8 bg-yellow-600 text-white font-bold py-3 rounded-xl hover:bg-yellow-700 transition-all shadow-lg flex justify-center items-center gap-2"
+                            >
+                                {loading ? 'Memproses Update...' : <><CheckCircle size={20} /> Ya, Update Data Ini</>}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    // KONDISI NORMAL (TIDAK ADA DUPLIKAT)
+                    <button 
+                        type="submit" 
+                        disabled={loading} 
+                        className="w-full bg-teal-800 text-white font-bold py-4 rounded-xl hover:bg-teal-900 transition-all shadow-lg shadow-teal-900/20 flex justify-center items-center gap-2 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? 'Sedang Memvalidasi & Menyimpan...' : <><Send size={20} /> Kirim Data Sensus</>}
+                    </button>
+                )}
+
+                {Object.keys(errors).length > 0 && (
+                    <p className="text-red-500 text-center mt-4 font-bold flex items-center justify-center gap-2">
+                        <AlertCircle/> Terdapat data yang belum diisi di atas.
+                    </p>
+                )}
             </div>
             </form>
             
