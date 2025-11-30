@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { FileText, Send, Search, CheckCircle, Clock, XCircle, ArrowLeft } from 'lucide-react';
+import { FileText, Send, Search, CheckCircle, Clock, XCircle, ArrowLeft, Recycle } from 'lucide-react';
 // PERBAIKAN: Menambahkan ekstensi .js agar resolusi modul lebih pasti
 import { dbHelper } from '../utils/db.js'; 
 import { Link } from 'react-router-dom';
+
 
 export default function PublicSurat() {
   const [activeTab, setActiveTab] = useState('buat'); // 'buat' or 'cek'

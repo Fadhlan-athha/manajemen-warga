@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Home, Users, Save, Database, X, LogOut, Wallet, 
-  AlertTriangle, FileText, Map, Megaphone, BadgeCheck // Tambah BadgeCheck
+  AlertTriangle, FileText, Map, Megaphone, BadgeCheck, Recycle 
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout }) {
@@ -33,23 +33,24 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, on
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           <NavButton 
-            id="dashboard" label="Dashboard" icon={<Home size={20} />} 
+            id="dashboard" label="Dashboard" icon={<Home size={20} />}
             activeTab={activeTab} onClick={() => { setActiveTab('dashboard'); setIsOpen(false); }} 
           />
           <NavButton 
             id="warga" label="Data Warga" icon={<Users size={20} />} 
             activeTab={activeTab} onClick={() => { setActiveTab('warga'); setIsOpen(false); }} 
           />
-          
-          {/* MENU BARU: VERIFIKASI IURAN */}
           <NavButton 
-            id="verifikasi" 
-            label="Verifikasi Iuran" 
-            icon={<BadgeCheck size={20} />} 
-            activeTab={activeTab} 
-            onClick={() => { setActiveTab('verifikasi'); setIsOpen(false); }} 
+            id="verifikasi" label="Verifikasi Iuran" icon={<BadgeCheck size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('verifikasi'); setIsOpen(false); }} 
+          />
+          
+          {/* MENU BANK SAMPAH */}
+          <NavButton 
+            id="sampah" label="Bank Sampah" icon={<Recycle size={20} />} 
+            activeTab={activeTab} onClick={() => { setActiveTab('sampah'); setIsOpen(false); }} 
           />
 
           <NavButton 

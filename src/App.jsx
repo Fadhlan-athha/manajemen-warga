@@ -5,7 +5,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import PublicForm from './components/PublicForm';
 import AdminDashboard from './pages/AdminDashboard';
 import PublicFinance from './pages/PublicFinance';
-import PublicSurat from './pages/PublicSurat'; // <--- WAJIB ADA (Pastikan file ini sudah dibuat)
+import PublicSurat from './pages/PublicSurat';
+import PublicBankSampah from './pages/PublicBankSampah'; 
+
 import PanicButton from './components/PanicButton';
 
 // Komponen Wrapper untuk menampilkan PanicButton
@@ -33,10 +35,13 @@ export default function App() {
           {/* 2. Halaman Transparansi Keuangan */}
           <Route path="/transparansi" element={<PublicFinance />} />
 
-          {/* 3. Halaman Layanan Surat (INI YANG SEBELUMNYA KURANG) */}
+          {/* 3. Halaman Layanan Surat */}
           <Route path="/surat" element={<PublicSurat />} />
+          
+          {/* 4. Halaman Bank Sampah (INI YANG SEBELUMNYA HILANG/BELUM ADA) */}
+          <Route path="/banksampah" element={<PublicBankSampah />} />
 
-          {/* 4. Halaman Admin */}
+          {/* 5. Halaman Admin */}
           <Route path="/admin" element={<AdminDashboard />} />
 
           {/* Fallback: Jika halaman tidak ditemukan, balik ke utama */}

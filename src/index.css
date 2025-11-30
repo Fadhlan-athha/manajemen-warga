@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@layer utilities {
+  /* Scrollbar Kustom yang Modern & Gelap */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px; /* Lebar scrollbar lebih tipis */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent; /* Latar belakang transparan agar menyatu */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #334155; /* Warna Slate-700 (Abu Gelap) */
+    border-radius: 20px; /* Membuat ujungnya bulat */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #475569; /* Warna jadi sedikit terang saat di-hover */
+  }
+
+  /* Dukungan untuk Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+}

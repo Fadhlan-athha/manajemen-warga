@@ -1,6 +1,10 @@
 import { supabase } from './supabaseClient';
 
-// --- HELPER FORMAT DATA ---
+// ==========================================
+// 1. HELPER FUNCTIONS (FORMAT DATA & AI)
+// ==========================================
+
+// Format data dari Frontend ke Database Supabase
 const toDbPayload = (data, householdData) => {
   return {
     nik: data.nik,
@@ -27,6 +31,7 @@ const toDbPayload = (data, householdData) => {
   };
 };
 
+// Format data dari Database Supabase ke Frontend (CamelCase)
 const fromDbPayload = (data) => ({
   ...data,
   jenisKelamin: data.jenis_kelamin,
@@ -39,23 +44,42 @@ const fromDbPayload = (data) => ({
   tempatLahir: data.tempat_lahir,
   tanggalLahir: data.tanggal_lahir,
   statusPerkawinan: data.status_perkawinan,
-  golongan_darah: data.golongan_darah
+  golonganDarah: data.golongan_darah
 });
 
-// --- SMART CONTENT GENERATOR ---
+// Generator Konten Otomatis untuk Pengumuman (Simple AI Logic)
 const generateSmartContent = (judul, kategori, tanggal) => {
   const tglStr = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) : 'Waktu akan diinformasikan menyusul';
   
   if (kategori === 'Penting') {
-    return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\nKepada seluruh warga, diinformasikan:\n\n*${judul.toUpperCase()}*\n\n📅 Berlaku: ${tglStr}\n\nTerima kasih.\n_~ Pengurus RT/RW_`;
-  } else if (kategori === 'Agenda') {
-    return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\nKami mengundang warga pada:\n\n✨ *${judul}* ✨\n\n📅 Tanggal: ${tglStr}\n📍 Tempat: Lingkungan RT/RW\n\n_~ Panitia Kegiatan_`;
-  } else { 
-    return `📢 *INFORMASI WARGA* 📢\n\nSekilas info:\n\n*${judul}*\n\n_~ Admin Sistem RW_`;
+    return `🚨 *PENGUMUMAN PENTING WARGA* 🚨\n\n` +
+           `Kepada seluruh warga RT/RW setempat, diinformasikan hal berikut:\n\n` +
+           `*${judul.toUpperCase()}*\n\n` +
+           `Mohon perhatian khusus terkait hal ini demi keamanan dan kenyamanan lingkungan kita bersama.\n\n` +
+           `📅 Berlaku/Terjadi: ${tglStr}\n\n` +
+           `Terima kasih atas kerja samanya.\n` +
+           `_~ Pengurus RT/RW_`;
+  } 
+  else if (kategori === 'Agenda') {
+    return `🗓️ *UNDANGAN KEGIATAN WARGA* 🗓️\n\n` +
+           `Halo Warga! Kami mengundang Bapak/Ibu/Sdr untuk hadir dalam kegiatan:\n\n` +
+           `✨ *${judul}* ✨\n\n` +
+           `Acara ini akan dilaksanakan pada:\n` +
+           `📅 Tanggal: ${tglStr}\n` +
+           `📍 Tempat: Lingkungan RT/RW\n\n` +
+           `Kehadiran warga sangat kami harapkan untuk mempererat silaturahmi.\n` +
+           `_~ Panitia Kegiatan_`;
+  } 
+  else { 
+    return `📢 *INFORMASI WARGA* 📢\n\n` +
+           `Sekilas info untuk diketahui bersama:\n\n` +
+           `*${judul}*\n\n` +
+           `Semoga informasi ini bermanfaat bagi kita semua. Tetap jaga kesehatan dan kebersihan lingkungan.\n\n` +
+           `_~ Admin Sistem RW_`;
   }
 };
 
-// --- FUNGSI KIRIM WA ---
+// Fungsi Kirim Pesan WhatsApp via Fonnte API
 const sendWhatsAppMessage = async (message) => {
   const token = import.meta.env.VITE_WA_API_TOKEN;
   const targetGroup = import.meta.env.VITE_WA_TARGET_GROUP;
@@ -73,24 +97,31 @@ const sendWhatsAppMessage = async (message) => {
   } catch (error) { console.error('Gagal WA:', error); }
 };
 
+// ==========================================
+// 2. DATABASE HELPER OBJECT (EXPORT UTAMA)
+// ==========================================
+
 export const dbHelper = {
-  // --- WARGA ---
+  // --- A. MANAJEMEN WARGA ---
   getAll: async () => {
     const { data, error } = await supabase.from('warga').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return data.map(fromDbPayload);
   },
+  
   getWargaByNIK: async (nik) => {
     const { data, error } = await supabase.from('warga').select('*').eq('nik', nik).single();
     if (error && error.code !== 'PGRST116') throw error; 
     return data ? fromDbPayload(data) : null;
   },
-  // FUNGSI BARU: Cek NIK (Ringan, cuma ambil nama)
-  checkNIK: async (nik) => {
-    const { data, error } = await supabase.from('warga').select('nama').eq('nik', nik).maybeSingle();
-    if (error) return null;
-    return data; // Mengembalikan { nama: '...' } jika ada, atau null jika tidak
+
+  // Fungsi Cek Duplikat (Fitur Baru)
+  checkDuplicate: async (column, value) => {
+    const { count, error } = await supabase.from('warga').select('*', { count: 'exact', head: true }).eq(column, value);
+    if (error) throw error;
+    return count > 0; 
   },
+
   uploadKK: async (file, noKK) => {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -100,11 +131,13 @@ export const dbHelper = {
     const { data } = supabase.storage.from('dokumen-warga').getPublicUrl(filePath);
     return data.publicUrl;
   },
+
   addFamily: async (members, householdData) => {
     const payload = members.map(member => toDbPayload(member, householdData));
     const { data, error } = await supabase.from('warga').upsert(payload, { onConflict: 'nik' }).select();
     if (error) throw error; return data;
   },
+
   update: async (formData) => {
     const payload = {
       nama: formData.nama, nik: formData.nik, kk: formData.kk,
@@ -119,34 +152,39 @@ export const dbHelper = {
     const { data, error } = await supabase.from('warga').update(payload).eq('id', formData.id).select();
     if (error) throw error; return data[0];
   },
+
   delete: async (id) => {
     const { error } = await supabase.from('warga').delete().eq('id', id);
     if (error) throw error; return true;
   },
 
-  // --- KEUANGAN ---
+  // --- B. KEUANGAN & KAS ---
   getKeuangan: async () => {
     const { data, error } = await supabase.from('transaksi_keuangan').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   addTransaksi: async (transaksi) => {
     const { data, error } = await supabase.from('transaksi_keuangan').insert([transaksi]).select();
     if (error) throw error; return data[0];
   },
+
   deleteTransaksi: async (id) => {
     const { error } = await supabase.from('transaksi_keuangan').delete().eq('id', id);
     if (error) throw error; return true;
   },
 
-  // --- LAPORAN DARURAT ---
+  // --- C. LAPORAN DARURAT ---
   getLaporan: async () => {
     const { data, error } = await supabase.from('laporan_darurat').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   addLaporan: async (laporan) => {
     const { data, error } = await supabase.from('laporan_darurat').insert([laporan]).select();
     if (error) throw error; 
     
+    // Broadcast Notifikasi Darurat
     const waktu = new Date().toLocaleString('id-ID');
     const msg = `🔴 *PERINGATAN DINI - SISTEM RW* 🔴\n\n` +
       `Telah diterima laporan darurat baru!\n\n` +
@@ -155,31 +193,37 @@ export const dbHelper = {
       `👤 *PELAPOR:* ${laporan.pelapor_nama || 'Anonim'}\n` +
       `🕒 *WAKTU:* ${waktu}\n\n` +
       `Mohon petugas keamanan segera merapat!`;
+      
     sendWhatsAppMessage(msg); 
     return data[0];
   },
+
   updateStatusLaporan: async (id, status) => {
     const { data, error } = await supabase.from('laporan_darurat').update({ status }).eq('id', id).select();
     if (error) throw error; return data[0];
   },
+
   deleteLaporan: async (id) => {
     const { error } = await supabase.from('laporan_darurat').delete().eq('id', id);
     if (error) throw error; return true;
   },
 
-  // --- SURAT PENGANTAR ---
+  // --- D. SURAT MENYURAT ---
   getSurat: async () => {
     const { data, error } = await supabase.from('pengajuan_surat').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   getSuratByNIK: async (nik) => {
     const { data, error } = await supabase.from('pengajuan_surat').select('*').eq('nik', nik).order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   addSurat: async (surat) => {
     const { data, error } = await supabase.from('pengajuan_surat').insert([surat]).select();
     if (error) throw error; return data[0];
   },
+
   uploadFileSurat: async (file) => {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -189,6 +233,7 @@ export const dbHelper = {
     const { data } = supabase.storage.from('surat-resmi').getPublicUrl(fileName);
     return data.publicUrl;
   },
+
   updateStatusSurat: async (id, status, nomor_surat = null, file_url = null) => {
     const payload = { status, nomor_surat };
     if (file_url) payload.file_url = file_url;
@@ -196,24 +241,12 @@ export const dbHelper = {
     if (error) throw error; return data[0];
   },
 
-  // --- TAMBAHKAN FUNGSI BARU INI ---
-  checkDuplicate: async (column, value) => {
-    // Mengecek apakah nilai pada kolom tertentu (nik atau kk) sudah ada
-    // Menggunakan count: 'exact' dan head: true agar lebih ringan/cepat
-    const { count, error } = await supabase
-      .from('warga')
-      .select('*', { count: 'exact', head: true })
-      .eq(column, value);
-    
-    if (error) throw error;
-    return count > 0; // Mengembalikan true jika duplikat ditemukan
-  },
-
-  // --- PENGUMUMAN ---
+  // --- E. PENGUMUMAN ---
   getPengumuman: async () => {
     const { data, error } = await supabase.from('pengumuman').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   addPengumuman: async (item, autoGenerateAI = false) => {
     const { useAI, ...restItem } = item;
     const dbPayload = { ...restItem, tanggal_kegiatan: restItem.tanggal_kegiatan || null };
@@ -226,19 +259,22 @@ export const dbHelper = {
 
     const { data, error } = await supabase.from('pengumuman').insert([dbPayload]).select();
     if (error) throw error;
+
     if (autoGenerateAI) await sendWhatsAppMessage(finalContent);
     return data[0];
   },
+
   deletePengumuman: async (id) => {
     const { error } = await supabase.from('pengumuman').delete().eq('id', id);
     if (error) throw error; return true;
   },
 
-  // --- IURAN WARGA ---
+  // --- F. IURAN WARGA ---
   getIuran: async () => {
     const { data, error } = await supabase.from('iuran_warga').select('*').order('created_at', { ascending: false });
     if (error) throw error; return data;
   },
+
   uploadBuktiTransfer: async (file, nik) => {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
@@ -248,10 +284,12 @@ export const dbHelper = {
     const { data } = supabase.storage.from('dokumen-warga').getPublicUrl(fileName);
     return data.publicUrl;
   },
+
   bayarIuran: async (form) => {
     const { data, error } = await supabase.from('iuran_warga').insert([form]).select();
     if (error) throw error; return data[0];
   },
+
   verifikasiIuran: async (idIuran, dataIuran) => {
     const { error: errUpdate } = await supabase.from('iuran_warga').update({ status: 'Lunas' }).eq('id', idIuran);
     if (errUpdate) throw errUpdate;
@@ -264,8 +302,10 @@ export const dbHelper = {
     };
     const { error: errKas } = await supabase.from('transaksi_keuangan').insert([transaksiPayload]);
     if (errKas) throw errKas;
+
     return true;
   },
+
   broadcastTagihan: async (hariKe) => {
     const bankInfo = "BCA 1234567890 a.n Bendahara RW"; 
     const bulanIni = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
@@ -281,8 +321,42 @@ export const dbHelper = {
       `💰 Nominal: *Rp 200.000*\n` +
       `🏦 Transfer ke: *${bankInfo}*\n\n` +
       `Mohon segera transfer dan upload bukti pembayaran melalui aplikasi warga.\n` +
-      `Terima kasih bagi yang sudah membayar.\n_~ Bendahara RW_`;
+      `Terima kasih bagi yang sudah membayar. Abaikan pesan ini jika sudah lunas.\n` +
+      `_~ Bendahara RW_`;
 
     await sendWhatsAppMessage(message);
+  },
+
+  // --- G. BANK SAMPAH (FITUR BARU) ---
+  // Pastikan Anda sudah membuat tabel 'bank_sampah' di Supabase
+  addSetoranSampah: async (data) => {
+    // data: { nik, nama, jenis_sampah, berat_kg, harga_per_kg, total_rp }
+    const { data: result, error } = await supabase
+      .from('bank_sampah')
+      .insert([data])
+      .select();
+    
+    if (error) throw error;
+    return result[0];
+  },
+
+  getRiwayatSampah: async () => {
+    const { data, error } = await supabase
+      .from('bank_sampah')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  },
+
+  getSaldoSampahByNIK: async (nik) => {
+    const { data, error } = await supabase
+      .from('bank_sampah')
+      .select('total_rp')
+      .eq('nik', nik);
+      
+    if (error) throw error;
+    return data.reduce((acc, curr) => acc + curr.total_rp, 0);
   }
 };

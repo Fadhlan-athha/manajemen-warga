@@ -3,7 +3,7 @@ import { dbHelper } from '../utils/db.js';
 import { 
   Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
   Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, 
-  AlertCircle, Megaphone, XCircle 
+  AlertCircle, Megaphone, XCircle, Recycle // <--- Pastikan Recycle ada di sini
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -13,7 +13,7 @@ export default function PublicForm() {
   const [errors, setErrors] = useState({});
   const [announcements, setAnnouncements] = useState([]); 
 
-  // --- STATE BARU: STATUS DUPLIKAT ---
+  // --- STATE STATUS DUPLIKAT ---
   const [duplicateStatus, setDuplicateStatus] = useState({
     kk: false,
     members: {} // format: { 0: false, 1: true }
@@ -32,7 +32,7 @@ export default function PublicForm() {
     }
   ]);
 
-  // --- FUNGSI BARU: CEK KETERSEDIAAN DATA ---
+  // --- FUNGSI CEK KETERSEDIAAN DATA (REAL-TIME) ---
   const checkAvailability = async (type, value, index = null) => {
     if (!value || value.length < 16) return; 
 
@@ -126,7 +126,6 @@ export default function PublicForm() {
       return newErrors;
   };
 
-  // --- HANDLER SUBMIT YANG DIPERBARUI ---
   const handleSubmit = async (e, isUpdateMode = false) => {
     if (e) e.preventDefault();
 
@@ -155,7 +154,6 @@ export default function PublicForm() {
       if (household.fotoFile) {
         fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk);
       }
-      // Jika mode update dan foto tidak diganti, fotoUrl akan null (logic ini bisa disesuaikan di backend jika perlu retain foto lama)
       
       const householdDataFinal = { ...household, fotoUrl };
       await dbHelper.addFamily(members, householdDataFinal);
@@ -194,12 +192,19 @@ export default function PublicForm() {
          <div className="relative z-10">
             <h1 className="text-4xl font-extrabold mb-4 tracking-tight drop-shadow-md">Portal Warga Digital</h1>
             <p className="text-teal-100 mb-10 text-lg font-light">Sistem Pelayanan & Data Warga Terpadu</p>
+            
+            {/* --- NAVIGATION BUTTONS --- */}
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-4xl mx-auto">
                 <Link to="/surat" className="bg-white/90 backdrop-blur text-teal-900 px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl hover:bg-white transition-all transform hover:-translate-y-1 hover:scale-105">
                     <FileText size={24} className="text-teal-700" /> Layanan Surat Pengantar <ArrowRight size={18} className="text-gray-400" />
                 </Link>
                 <Link to="/transparansi" className="bg-teal-600/90 backdrop-blur text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl border border-teal-500 hover:bg-teal-600 transition-all transform hover:-translate-y-1 hover:scale-105">
                     <span>💰 Cek Kas RT</span>
+                </Link>
+                
+                {/* TOMBOL BANK SAMPAH (BARU) */}
+                <Link to="/banksampah" className="bg-green-600/90 backdrop-blur text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl border border-green-500 hover:bg-green-500 transition-all transform hover:-translate-y-1 hover:scale-105">
+                    <Recycle size={20} /> <span>Bank Sampah</span>
                 </Link>
             </div>
          </div>
@@ -393,10 +398,10 @@ export default function PublicForm() {
                 </button>
             </div>
 
+            {/* --- BAGIAN TOMBOL KIRIM / UPDATE YANG DINAMIS --- */}
             <div className="pt-6 border-t border-gray-100">
-                {/* LOGIKA TOMBOL DINAMIS: CEK DUPLIKAT */}
                 {Object.values(duplicateStatus.members).some(v => v) || duplicateStatus.kk ? (
-                    // KONDISI JIKA ADA DUPLIKAT
+                    // KONDISI JIKA ADA DUPLIKAT -> TOMBOL UPDATE
                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-center animate-in slide-in-from-bottom-2">
                         <div className="flex items-center justify-center gap-2 text-yellow-800 font-bold mb-2">
                             <AlertCircle size={24} />
@@ -419,7 +424,7 @@ export default function PublicForm() {
                         </div>
                     </div>
                 ) : (
-                    // KONDISI NORMAL (TIDAK ADA DUPLIKAT)
+                    // KONDISI NORMAL -> TOMBOL KIRIM
                     <button 
                         type="submit" 
                         disabled={loading} 
