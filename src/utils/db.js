@@ -86,6 +86,53 @@ export const dbHelper = {
     }; 
   },
 
+  // --- I. GAMIFIKASI (LEADERBOARD) ---
+  getLeaderboard: async () => {
+    // 1. Ambil semua data setoran (hanya kolom nama dan berat)
+    const { data, error } = await supabase
+      .from('bank_sampah')
+      .select('nama, berat_kg');
+    
+    if (error) throw error;
+
+    // 2. Agregasi Data (Group by Nama)
+    const stats = {};
+    data.forEach(item => {
+      // Normalisasi nama (huruf kecil/besar disamakan agar tidak duplikat)
+      const nama = item.nama.trim();
+      if (!stats[nama]) {
+        stats[nama] = 0;
+      }
+      stats[nama] += Number(item.berat_kg);
+    });
+
+    // 3. Convert ke Array, Beri Badge, dan Urutkan
+    const leaderboard = Object.keys(stats).map(nama => {
+      const total = stats[nama];
+      
+      // Logika Badges
+      let badge = '🌱 Pemula';
+      let color = 'bg-gray-100 text-gray-600'; // Default styling
+
+      if (total > 100) {
+        badge = '👑 Sultan Sampah';
+        color = 'bg-yellow-100 text-yellow-700';
+      } else if (total > 50) {
+        badge = '🌳 Pahlawan Lingkungan';
+        color = 'bg-green-100 text-green-700';
+      } else if (total > 10) {
+        badge = '🌿 Pengiat';
+        color = 'bg-teal-100 text-teal-700';
+      }
+
+      return { nama, total, badge, color };
+    })
+    .sort((a, b) => b.total - a.total) // Urutkan dari terbesar
+    .slice(0, 5); // Ambil Top 5
+
+    return leaderboard;
+  },
+
   // --- B. WARGA ---
   getAll: async (filterRT = null) => {
     let query = supabase.from('warga').select('*');

@@ -1,26 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { dbHelper } from '../utils/db.js';
+import { dbHelper } from '../utils/db.js'; //
 import { 
   Send, CheckCircle, Plus, Trash2, UploadCloud, User, FileText, ArrowRight, 
   Briefcase, Calendar, Heart, MapPin, BookOpen, Users, Phone, Mail, UserCheck, 
-  AlertCircle, Megaphone, XCircle, Recycle // <--- Pastikan Recycle ada di sini
+  AlertCircle, Megaphone, XCircle, Recycle, Camera, Loader2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import Tesseract from 'tesseract.js'; // Import library OCR
 
 export default function PublicForm() {
   const [loading, setLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false); // State untuk loading OCR
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState({});
   const [announcements, setAnnouncements] = useState([]); 
 
-  // --- STATE STATUS DUPLIKAT ---
   const [duplicateStatus, setDuplicateStatus] = useState({
     kk: false,
-    members: {} // format: { 0: false, 1: true }
+    members: {} 
   });
 
   const [household, setHousehold] = useState({
-    kk: '', noRumah: '', rt: '01', rw: '024', alamat: '', status: 'Tetap', fotoFile: null
+    kk: '', noRumah: '', rt: '01', rw: '03', alamat: '', status: 'Tetap', fotoFile: null
   });
 
   const [members, setMembers] = useState([
@@ -32,13 +33,57 @@ export default function PublicForm() {
     }
   ]);
 
-  // --- FUNGSI CEK KETERSEDIAAN DATA (REAL-TIME) ---
+  // --- LOGIKA OCR / SCAN KTP ---
+  const handleOCR = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    try {
+      const { data: { text } } = await Tesseract.recognize(
+        file,
+        'ind', // Bahasa Indonesia
+        { logger: m => console.log(m) }
+      );
+
+      // --- PARSING SEDERHANA ---
+      // 1. Cari NIK (16 digit angka)
+      const nikMatch = text.match(/\d{16}/);
+      // 2. Cari Nama (pola: Nama : [Huruf Kapital])
+      const namaMatch = text.match(/Nama\s*:?\s*([A-Z\s]+)/i);
+      // 3. Cari Tanggal Lahir (DD-MM-YYYY)
+      const tglMatch = text.match(/(\d{2}-\d{2}-\d{4})/);
+
+      // Update State
+      const newMembers = [...members];
+      if (nikMatch) newMembers[0].nik = nikMatch[0];
+      if (namaMatch) {
+          // Bersihkan karakter aneh di nama
+          newMembers[0].nama = namaMatch[1].replace(/[^a-zA-Z\s]/g, '').trim(); 
+      }
+      
+      // Format tanggal ke YYYY-MM-DD untuk input HTML
+      if (tglMatch) {
+          const [d, m, y] = tglMatch[0].split('-');
+          newMembers[0].tanggalLahir = `${y}-${m}-${d}`;
+      }
+
+      setMembers(newMembers);
+      alert("Scan KTP Selesai! Mohon periksa kembali data yang terisi otomatis.");
+
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memproses gambar KTP. Silakan input manual.");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+  // -----------------------------
+
   const checkAvailability = async (type, value, index = null) => {
     if (!value || value.length < 16) return; 
-
     try {
         let isDuplicate = false;
-        
         if (type === 'kk') {
             isDuplicate = await dbHelper.checkDuplicate('kk', value);
             setDuplicateStatus(prev => ({ ...prev, kk: isDuplicate }));
@@ -61,12 +106,10 @@ export default function PublicForm() {
             const data = await dbHelper.getPengumuman();
             const offset = new Date().getTimezoneOffset() * 60000;
             const todayStr = (new Date(Date.now() - offset)).toISOString().slice(0, 10);
-
             const activeData = (data || []).filter(item => {
                 if (!item.tanggal_kegiatan) return true;
                 return item.tanggal_kegiatan >= todayStr;
             });
-
             setAnnouncements(activeData);
         } catch (err) { console.error("Gagal load info", err); }
     };
@@ -129,11 +172,9 @@ export default function PublicForm() {
   const handleSubmit = async (e, isUpdateMode = false) => {
     if (e) e.preventDefault();
 
-    // 1. CEK DUPLIKASI (Hanya jika BUKAN mode update)
     if (!isUpdateMode) {
         const isKKDuplicate = duplicateStatus.kk;
         const isAnyNIKDuplicate = Object.values(duplicateStatus.members).some(val => val === true);
-
         if (isKKDuplicate || isAnyNIKDuplicate) {
             alert("Data duplikat terdeteksi! Gunakan tombol Update jika ingin menimpa data lama.");
             return;
@@ -154,7 +195,6 @@ export default function PublicForm() {
       if (household.fotoFile) {
         fotoUrl = await dbHelper.uploadKK(household.fotoFile, household.kk);
       }
-      
       const householdDataFinal = { ...household, fotoUrl };
       await dbHelper.addFamily(members, householdDataFinal);
       setSuccess(true);
@@ -193,16 +233,13 @@ export default function PublicForm() {
             <h1 className="text-4xl font-extrabold mb-4 tracking-tight drop-shadow-md">Portal Warga Digital</h1>
             <p className="text-teal-100 mb-10 text-lg font-light">Sistem Pelayanan & Data Warga Terpadu</p>
             
-            {/* --- NAVIGATION BUTTONS --- */}
             <div className="flex flex-col sm:flex-row justify-center gap-4 max-w-4xl mx-auto">
                 <Link to="/surat" className="bg-white/90 backdrop-blur text-teal-900 px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl hover:bg-white transition-all transform hover:-translate-y-1 hover:scale-105">
-                    <FileText size={24} className="text-teal-700" /> Layanan Surat Pengantar <ArrowRight size={18} className="text-gray-400" />
+                    <FileText size={24} className="text-teal-700" /> Layanan Surat <ArrowRight size={18} className="text-gray-400" />
                 </Link>
                 <Link to="/transparansi" className="bg-teal-600/90 backdrop-blur text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl border border-teal-500 hover:bg-teal-600 transition-all transform hover:-translate-y-1 hover:scale-105">
                     <span>💰 Cek Kas RT</span>
                 </Link>
-                
-                {/* TOMBOL BANK SAMPAH (BARU) */}
                 <Link to="/banksampah" className="bg-green-600/90 backdrop-blur text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl border border-green-500 hover:bg-green-500 transition-all transform hover:-translate-y-1 hover:scale-105">
                     <Recycle size={20} /> <span>Bank Sampah</span>
                 </Link>
@@ -212,7 +249,6 @@ export default function PublicForm() {
 
       <div className="max-w-5xl mx-auto px-4 pb-20 relative z-20 -mt-8">
         
-        {/* SECTION PENGUMUMAN OTOMATIS */}
         {announcements.length > 0 && (
             <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {announcements.slice(0, 3).map(info => (
@@ -299,6 +335,28 @@ export default function PublicForm() {
 
             {/* DATA ANGGOTA KELUARGA */}
             <div>
+                {/* --- FITUR BARU: TOMBOL OCR --- */}
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h4 className="font-bold text-blue-800 flex items-center gap-2"><Camera size={20}/> Isi Otomatis dengan Foto KTP</h4>
+                        <p className="text-xs text-blue-600 mt-1">Upload foto KTP Kepala Keluarga agar data terisi otomatis.</p>
+                    </div>
+                    <div className="relative">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleOCR} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            disabled={ocrLoading}
+                        />
+                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-blue-700 transition flex items-center gap-2">
+                            {ocrLoading ? <Loader2 className="animate-spin" size={18}/> : <Camera size={18}/>}
+                            {ocrLoading ? 'Memproses...' : 'Scan KTP'}
+                        </button>
+                    </div>
+                </div>
+                {/* ----------------------------- */}
+
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2"><User size={20}/> Anggota Keluarga</h3>
                 <div className="space-y-6">
                 {members.map((member, index) => (
@@ -398,10 +456,8 @@ export default function PublicForm() {
                 </button>
             </div>
 
-            {/* --- BAGIAN TOMBOL KIRIM / UPDATE YANG DINAMIS --- */}
             <div className="pt-6 border-t border-gray-100">
                 {Object.values(duplicateStatus.members).some(v => v) || duplicateStatus.kk ? (
-                    // KONDISI JIKA ADA DUPLIKAT -> TOMBOL UPDATE
                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-center animate-in slide-in-from-bottom-2">
                         <div className="flex items-center justify-center gap-2 text-yellow-800 font-bold mb-2">
                             <AlertCircle size={24} />
@@ -415,7 +471,7 @@ export default function PublicForm() {
                         <div className="flex gap-3 justify-center">
                             <button 
                                 type="button" 
-                                onClick={(e) => handleSubmit(e, true)} // True = Force Update
+                                onClick={(e) => handleSubmit(e, true)} 
                                 disabled={loading} 
                                 className="w-full md:w-auto px-8 bg-yellow-600 text-white font-bold py-3 rounded-xl hover:bg-yellow-700 transition-all shadow-lg flex justify-center items-center gap-2"
                             >
@@ -424,7 +480,6 @@ export default function PublicForm() {
                         </div>
                     </div>
                 ) : (
-                    // KONDISI NORMAL -> TOMBOL KIRIM
                     <button 
                         type="submit" 
                         disabled={loading} 
