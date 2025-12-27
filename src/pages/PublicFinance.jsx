@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dbHelper } from '../utils/db';
-import { Wallet, ArrowLeft, TrendingUp, TrendingDown, CreditCard, UploadCloud, X, Check } from 'lucide-react';
+import { Wallet, ArrowLeft, TrendingUp, TrendingDown, CreditCard, UploadCloud, X, Check, Loader2, FileText, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
@@ -13,6 +13,10 @@ export default function PublicFinance() {
   const [payForm, setPayForm] = useState({ nik: '', nama: '', bulan: new Date().toISOString().slice(0,7), file: null });
   const [uploading, setUploading] = useState(false);
 
+  // State Tambahan untuk UX
+  const [checkingNik, setCheckingNik] = useState(false); // Loading saat cari NIK
+  const [detectedName, setDetectedName] = useState(''); // Nama yang ditemukan
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -22,13 +26,40 @@ export default function PublicFinance() {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
+  // --- LOGIKA 1: AUTO DETECT NAMA ---
+  const handleNikChange = async (e) => {
+    const val = e.target.value;
+    setPayForm({ ...payForm, nik: val });
+
+    // Reset nama jika user menghapus NIK
+    if (val.length < 16) {
+        setDetectedName('');
+    }
+
+    // Jika sudah 16 digit, cari di database
+    if (val.length === 16) {
+        setCheckingNik(true);
+        try {
+            const warga = await dbHelper.getWargaByNIK(val);
+            if (warga) {
+                setDetectedName(warga.nama);
+                setPayForm(prev => ({ ...prev, nama: warga.nama })); // Simpan nama ke form state
+            } else {
+                setDetectedName('');
+                alert("NIK tidak ditemukan dalam data warga.");
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setCheckingNik(false);
+        }
+    }
+  };
+
   const handlePaySubmit = async (e) => {
       e.preventDefault();
       if (!payForm.file) return alert("Bukti transfer wajib diupload!");
-      
-      // Cek Nama via NIK (Simple validation)
-      const warga = await dbHelper.getWargaByNIK(payForm.nik);
-      if (!warga) return alert("NIK tidak ditemukan dalam data warga.");
+      if (!detectedName) return alert("NIK tidak valid atau nama tidak ditemukan.");
 
       setUploading(true);
       try {
@@ -38,7 +69,7 @@ export default function PublicFinance() {
           // 2. Simpan Data
           await dbHelper.bayarIuran({
               nik: payForm.nik,
-              nama: warga.nama,
+              nama: detectedName, // Pakai nama yang terdeteksi
               bulan_tahun: payForm.bulan,
               nominal: 200000,
               bukti_url: url,
@@ -48,6 +79,7 @@ export default function PublicFinance() {
           alert("Pembayaran berhasil dikirim! Menunggu verifikasi admin.");
           setShowPayModal(false);
           setPayForm({ nik: '', nama: '', bulan: new Date().toISOString().slice(0,7), file: null });
+          setDetectedName('');
       } catch (err) {
           alert("Gagal: " + err.message);
       } finally {
@@ -158,23 +190,88 @@ export default function PublicFinance() {
                     <button onClick={() => setShowPayModal(false)}><X size={20}/></button>
                 </div>
                 <form onSubmit={handlePaySubmit} className="p-6 space-y-4">
-                    <div className="bg-teal-50 text-teal-800 p-3 rounded-lg text-sm mb-2">
+                    <div className="bg-teal-50 text-teal-800 p-3 rounded-lg text-sm mb-2 border border-teal-100">
                         Pembayaran untuk <b>Air & Listrik</b> sebesar <b>Rp 200.000</b>. Silakan transfer ke Bank RW dan upload buktinya.
                     </div>
+                    
+                    {/* INPUT NIK (Auto Check) */}
                     <div>
                         <label className="text-xs font-bold uppercase text-gray-500">NIK Anda</label>
-                        <input className="w-full border p-2 rounded mt-1" type="number" placeholder="16 Digit NIK" value={payForm.nik} onChange={e => setPayForm({...payForm, nik: e.target.value})} required/>
+                        <div className="relative mt-1">
+                            <input 
+                                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition-all" 
+                                type="number" 
+                                placeholder="Masukkan 16 Digit NIK" 
+                                value={payForm.nik} 
+                                onChange={handleNikChange} 
+                                required
+                            />
+                            {checkingNik && (
+                                <div className="absolute right-3 top-3 text-teal-600">
+                                    <Loader2 size={20} className="animate-spin" />
+                                </div>
+                            )}
+                        </div>
                     </div>
+
+                    {/* NAMA (Auto Filled) */}
+                    <div className={`transition-all duration-300 ${detectedName ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 overflow-hidden'}`}>
+                        <label className="text-xs font-bold uppercase text-gray-500">Nama Warga</label>
+                        <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg border border-gray-200 mt-1">
+                            <User size={18} className="text-gray-500" />
+                            <span className="font-bold text-gray-700">{detectedName}</span>
+                            <Check size={18} className="text-green-500 ml-auto" />
+                        </div>
+                    </div>
+
                     <div>
                         <label className="text-xs font-bold uppercase text-gray-500">Untuk Bulan</label>
-                        <input className="w-full border p-2 rounded mt-1" type="month" value={payForm.bulan} onChange={e => setPayForm({...payForm, bulan: e.target.value})} required/>
+                        <input 
+                            className="w-full border border-gray-300 p-3 rounded-lg mt-1 focus:ring-2 focus:ring-teal-500 outline-none" 
+                            type="month" 
+                            value={payForm.bulan} 
+                            onChange={e => setPayForm({...payForm, bulan: e.target.value})} 
+                            required
+                        />
                     </div>
+
+                    {/* CUSTOM FILE INPUT */}
                     <div>
                         <label className="text-xs font-bold uppercase text-gray-500">Bukti Transfer</label>
-                        <input type="file" accept="image/*" className="w-full text-sm mt-1" onChange={e => setPayForm({...payForm, file: e.target.files[0]})} required/>
+                        <label className={`mt-1 flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${payForm.file ? 'border-teal-500 bg-teal-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                {payForm.file ? (
+                                    <>
+                                        <FileText size={32} className="text-teal-600 mb-2" />
+                                        <p className="text-sm font-bold text-teal-700">{payForm.file.name}</p>
+                                        <p className="text-xs text-teal-500">Klik untuk ganti file</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <UploadCloud size={32} className="text-gray-400 mb-2" />
+                                        <p className="text-sm text-gray-500"><span className="font-bold">Klik untuk upload</span> bukti transfer</p>
+                                        <p className="text-xs text-gray-400">PNG, JPG (Max. 2MB)</p>
+                                    </>
+                                )}
+                            </div>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                onChange={e => setPayForm({...payForm, file: e.target.files[0]})} 
+                            />
+                        </label>
                     </div>
-                    <button disabled={uploading} className="w-full bg-teal-600 text-white font-bold py-3 rounded-xl hover:bg-teal-700 transition-colors shadow flex justify-center">
-                        {uploading ? 'Mengirim...' : 'Kirim Bukti Pembayaran'}
+
+                    <button 
+                        disabled={uploading || !detectedName} 
+                        className="w-full bg-teal-600 text-white font-bold py-3 rounded-xl hover:bg-teal-700 transition-colors shadow flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {uploading ? (
+                            <><Loader2 size={20} className="animate-spin"/> Mengirim...</>
+                        ) : (
+                            'Kirim Bukti Pembayaran'
+                        )}
                     </button>
                 </form>
             </div>

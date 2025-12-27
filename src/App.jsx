@@ -9,8 +9,9 @@ import PublicSurat from './pages/PublicSurat';
 import PublicBankSampah from './pages/PublicBankSampah'; 
 
 import PanicButton from './components/PanicButton';
+import Chatbot from './components/Chatbot'; // Import Komponen Baru
 
-// Komponen Wrapper untuk menampilkan PanicButton
+// Komponen Wrapper untuk menampilkan PanicButton dan Chatbot
 function LayoutWithPanicButton({ children }) {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
@@ -18,8 +19,13 @@ function LayoutWithPanicButton({ children }) {
   return (
     <>
       {children}
-      {/* Tampilkan tombol Panic hanya jika BUKAN halaman admin */}
-      {!isAdmin && <PanicButton />}
+      {/* Tampilkan tombol Panic & Chatbot hanya jika BUKAN halaman admin */}
+      {!isAdmin && (
+        <>
+          <PanicButton />
+          <Chatbot />
+        </>
+      )}
     </>
   );
 }
@@ -38,7 +44,7 @@ export default function App() {
           {/* 3. Halaman Layanan Surat */}
           <Route path="/surat" element={<PublicSurat />} />
           
-          {/* 4. Halaman Bank Sampah (INI YANG SEBELUMNYA HILANG/BELUM ADA) */}
+          {/* 4. Halaman Bank Sampah */}
           <Route path="/banksampah" element={<PublicBankSampah />} />
 
           {/* 5. Halaman Admin */}
