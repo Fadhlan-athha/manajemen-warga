@@ -2,14 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Import semua halaman
+import Home from './pages/Home';
 import PublicForm from './components/PublicForm';
 import AdminDashboard from './pages/AdminDashboard';
 import PublicFinance from './pages/PublicFinance';
 import PublicSurat from './pages/PublicSurat';
 import PublicBankSampah from './pages/PublicBankSampah'; 
-
 import PanicButton from './components/PanicButton';
-import Chatbot from './components/Chatbot'; // Import Komponen Baru
+import Chatbot from './components/Chatbot'; // Import Chatbot
 
 // Komponen Wrapper untuk menampilkan PanicButton dan Chatbot
 function LayoutWithPanicButton({ children }) {
@@ -35,22 +35,17 @@ export default function App() {
     <Router>
       <LayoutWithPanicButton>
         <Routes>
-          {/* 1. Halaman Utama (Sensus & Menu) */}
-          <Route path="/" element={<PublicForm />} />
+          {/* Halaman Utama (Home) */}
+          <Route path="/" element={<Home />} />
 
-          {/* 2. Halaman Transparansi Keuangan */}
+          {/* Halaman Fitur Lainnya */}
+          <Route path="/sensus" element={<PublicForm />} />
           <Route path="/transparansi" element={<PublicFinance />} />
-
-          {/* 3. Halaman Layanan Surat */}
           <Route path="/surat" element={<PublicSurat />} />
-          
-          {/* 4. Halaman Bank Sampah */}
           <Route path="/banksampah" element={<PublicBankSampah />} />
-
-          {/* 5. Halaman Admin */}
           <Route path="/admin" element={<AdminDashboard />} />
 
-          {/* Fallback: Jika halaman tidak ditemukan, balik ke utama */}
+          {/* Fallback jika halaman tidak ditemukan */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </LayoutWithPanicButton>
